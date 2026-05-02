@@ -1,16 +1,36 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState } from "react";
+import { SquadProvider } from "@/squad/context/SquadContext";
+import { AppShell, ScreenId } from "@/squad/components/AppShell";
+import { HomeScreen } from "@/squad/screens/HomeScreen";
+import { MapScreen } from "@/squad/screens/MapScreen";
+import { ExpensesScreen } from "@/squad/screens/ExpensesScreen";
+import { LateScreen } from "@/squad/screens/LateScreen";
+import { ProfileScreen } from "@/squad/screens/ProfileScreen";
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+const Index = () => {
+  const [screen, setScreen] = useState<ScreenId>("home");
+  const [openAdd, setOpenAdd] = useState(0);
+
+  const handleFab = () => {
+    if (screen === "late") {
+      // no-op; the form is right there
+      return;
+    }
+    setScreen("expenses");
+    setOpenAdd(v => v + 1);
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
-    </div>
+    <SquadProvider>
+      <AppShell active={screen} onChange={(s) => setScreen(s)} onFab={handleFab}>
+        {screen === "home" && <HomeScreen />}
+        {screen === "map" && <MapScreen />}
+        {screen === "expenses" && <ExpensesScreen key={openAdd} openAddOnMount={openAdd > 0} />}
+        {screen === "late" && <LateScreen />}
+        {screen === "profile" && <ProfileScreen />}
+      </AppShell>
+    </SquadProvider>
   );
 };
-
-const Index = PlaceholderIndex;
 
 export default Index;
