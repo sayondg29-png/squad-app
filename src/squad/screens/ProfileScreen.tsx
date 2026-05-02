@@ -1,7 +1,8 @@
 import { useRef } from "react";
 import { useSquad } from "../context/SquadContext";
 import { Avatar } from "../components/Avatar";
-import { Camera, LogOut, Shield, Bell, Users, Trash2 } from "lucide-react";
+import { AboutDialog } from "../components/AboutDialog";
+import { Camera, LogOut, Shield, Bell, Users, Trash2, Info, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 export function ProfileScreen() {
@@ -56,12 +57,23 @@ export function ProfileScreen() {
         <Row icon={Users} label="Squad members" value={String(members.length)} />
         <Row icon={Bell} label="Notifications" value="On" />
         <Row icon={Shield} label="Privacy" value="Location: opt-in" />
+        <AboutDialog
+          trigger={
+            <button className="w-full flex items-center gap-3 px-4 py-4 hover:bg-secondary/60 transition-colors border-b border-border/60 text-left">
+              <span className="w-9 h-9 rounded-xl bg-secondary text-accent flex items-center justify-center"><Info size={16} /></span>
+              <span className="flex-1 text-sm font-medium">About Squad</span>
+              <ChevronRight size={16} className="text-muted-foreground" />
+            </button>
+          }
+        />
         <button className="w-full flex items-center gap-3 px-4 py-4 hover:bg-secondary/60 transition-colors text-destructive font-semibold">
           <LogOut size={18} /> Leave Squad
         </button>
       </section>
 
-      <p className="text-center text-[11px] text-muted-foreground">Squad v1.0 · Know where they are. Know who owes what.</p>
+      <p className="text-center text-[11px] text-muted-foreground">
+        Squad v1.0 · Made by <span className="font-semibold text-foreground">Sayon Das Gupta</span> · CSE @ CUET
+      </p>
     </div>
   );
 }
