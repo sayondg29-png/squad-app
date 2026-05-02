@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { SquadProvider } from "@/squad/context/SquadContext";
+import { AuthProvider } from "@/squad/lib/auth";
 import { AppShell, ScreenId } from "@/squad/components/AppShell";
 import { HomeScreen } from "@/squad/screens/HomeScreen";
 import { MapScreen } from "@/squad/screens/MapScreen";
@@ -21,15 +22,17 @@ const Index = () => {
   };
 
   return (
-    <SquadProvider>
-      <AppShell active={screen} onChange={(s) => setScreen(s)} onFab={handleFab}>
+    <AuthProvider>
+      <SquadProvider>
+        <AppShell active={screen} onChange={(s) => setScreen(s)} onFab={handleFab}>
         {screen === "home" && <HomeScreen />}
         {screen === "map" && <MapScreen />}
         {screen === "expenses" && <ExpensesScreen key={openAdd} openAddOnMount={openAdd > 0} />}
         {screen === "late" && <LateScreen />}
         {screen === "profile" && <ProfileScreen />}
-      </AppShell>
-    </SquadProvider>
+        </AppShell>
+      </SquadProvider>
+    </AuthProvider>
   );
 };
 
