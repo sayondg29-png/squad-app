@@ -63,6 +63,9 @@ export function HomeScreen() {
                   <StatusBadge status={m.status} />
                   <span className="text-[11px] text-muted-foreground">{timeAgo(m.status.updatedAt)}</span>
                 </div>
+                {m.status.note && (
+                  <p className="mt-1.5 text-xs text-foreground/80 italic line-clamp-2">"{m.status.note}"</p>
+                )}
               </div>
               <StatusPicker member={m} />
             </div>

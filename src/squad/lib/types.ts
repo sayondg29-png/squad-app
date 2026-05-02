@@ -3,6 +3,7 @@ export type StatusKind = "here" | "otw" | "late" | "not_coming" | "idle";
 export interface SquadStatus {
   kind: StatusKind;
   etaMinutes?: number;
+  note?: string;
   updatedAt: number; // ms
 }
 
