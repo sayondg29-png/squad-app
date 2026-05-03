@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getStorage } from "firebase/storage";
-import { getAuth, signInAnonymously } from "firebase/auth";
+import { getAuth, signInAnonymously, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAZ81iqa8ub_l5OA3ae9JheRoPNgu55pb0",
@@ -15,6 +15,11 @@ const firebaseConfig = {
 export const firebaseApp = initializeApp(firebaseConfig);
 export const firebaseStorage = getStorage(firebaseApp);
 export const firebaseAuth = getAuth(firebaseApp);
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: "select_account" });
+
+export const signInWithGoogle = () => signInWithPopup(firebaseAuth, googleProvider);
+export const firebaseSignOut = () => signOut(firebaseAuth);
 
 let signInPromise: Promise<unknown> | null = null;
 export function ensureFirebaseAuth() {
