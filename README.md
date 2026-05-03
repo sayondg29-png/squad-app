@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# Welcome to SQUAD APP
 
-TODO: Document your project here
+AN app to treat your notorious friends
