@@ -1,22 +1,38 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useSquad } from "../context/SquadContext";
 import { Avatar } from "../components/Avatar";
 import { AboutDialog } from "../components/AboutDialog";
-import { Camera, LogOut, Shield, Bell, Users, Trash2, Info, ChevronRight } from "lucide-react";
+import { Camera, LogOut, Shield, Bell, Users, Trash2, Info, ChevronRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { ensureFirebaseAuth, firebaseStorage } from "@/integrations/firebase/client";
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
 export function ProfileScreen() {
   const { members, meId, setMyAvatar, squadName } = useSquad();
   const me = members.find(m => m.id === meId)!;
   const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
 
-  const onPick = (file?: File) => {
+  const onPick = async (file?: File) => {
     if (!file) return;
     if (!/^image\/(jpeg|png)$/.test(file.type)) { toast.error("Please pick a JPG or PNG"); return; }
     if (file.size > 5 * 1024 * 1024) { toast.error("Max 5MB"); return; }
-    const reader = new FileReader();
-    reader.onload = () => { setMyAvatar(reader.result as string); toast.success("Profile photo updated"); };
-    reader.readAsDataURL(file);
+    setUploading(true);
+    try {
+      await ensureFirebaseAuth();
+      const ext = file.type === "image/png" ? "png" : "jpg";
+      const path = `avatars/${meId}/${Date.now()}.${ext}`;
+      const ref = storageRef(firebaseStorage, path);
+      await uploadBytes(ref, file, { contentType: file.type });
+      const url = await getDownloadURL(ref);
+      setMyAvatar(url);
+      toast.success("Profile photo uploaded");
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -28,10 +44,11 @@ export function ProfileScreen() {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
+            disabled={uploading}
             aria-label="Upload profile photo"
-            className="absolute bottom-1 right-1 w-10 h-10 rounded-full gradient-primary text-white shadow-glow flex items-center justify-center tap-scale hover:scale-110 transition-transform"
+            className="absolute bottom-1 right-1 w-10 h-10 rounded-full gradient-primary text-white shadow-glow flex items-center justify-center tap-scale hover:scale-110 transition-transform disabled:opacity-60"
           >
-            <Camera size={18} />
+            {uploading ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
           </button>
           <input
             ref={fileRef}
