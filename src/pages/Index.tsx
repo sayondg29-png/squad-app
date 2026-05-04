@@ -1,60 +1,58 @@
 import { useState } from "react";
-import { SquadProvider } from "@/squad/context/SquadContext";
-import { AuthProvider } from "@/squad/lib/auth";
-import { FirebaseAuthProvider, useFirebaseAuth } from "@/squad/lib/firebaseAuth";
-import { AppShell, ScreenId } from "@/squad/components/AppShell";
+import { Loader2 } from "lucide-react";
+import { AppProvider, useApp } from "@/squad/lib/AppContext";
+import { LoginScreen } from "@/squad/screens/LoginScreen";
+import { ProfileSetupScreen } from "@/squad/screens/ProfileSetupScreen";
+import { WelcomeScreen } from "@/squad/screens/WelcomeScreen";
+import { CreateSquadScreen } from "@/squad/screens/CreateSquadScreen";
+import { JoinSquadScreen } from "@/squad/screens/JoinSquadScreen";
 import { HomeScreen } from "@/squad/screens/HomeScreen";
-import { MapScreen } from "@/squad/screens/MapScreen";
 import { ExpensesScreen } from "@/squad/screens/ExpensesScreen";
 import { LateScreen } from "@/squad/screens/LateScreen";
+import { MapScreen } from "@/squad/screens/MapScreen";
 import { ProfileScreen } from "@/squad/screens/ProfileScreen";
-import { LandingScreen } from "@/squad/screens/LandingScreen";
-import { Loader2 } from "lucide-react";
+import { BottomNav, Tab } from "@/squad/components/BottomNav";
 
-const AppContent = () => {
-  const { user, loading } = useFirebaseAuth();
-  const [screen, setScreen] = useState<ScreenId>("home");
-  const [openAdd, setOpenAdd] = useState(0);
+type WelcomeRoute = "welcome" | "create" | "join";
 
-  const handleFab = () => {
-    if (screen === "late") {
-      return;
-    }
-    setScreen("expenses");
-    setOpenAdd(v => v + 1);
-  };
+const Inner = () => {
+  const { session, loading, profile } = useApp();
+  const [tab, setTab] = useState<Tab>("home");
+  const [route, setRoute] = useState<WelcomeRoute>("welcome");
 
   if (loading) {
     return (
-      <div className="min-h-dvh flex items-center justify-center">
-        <Loader2 className="animate-spin text-accent" size={32} />
+      <div className="min-h-dvh flex items-center justify-center bg-[#0D0D2B]">
+        <Loader2 className="animate-spin text-[#00E5FF]" size={32} />
       </div>
     );
   }
 
-  if (!user) return <LandingScreen />;
+  if (!session) return <LoginScreen />;
+  if (!profile) return <ProfileSetupScreen />;
+
+  if (!profile.squad_id) {
+    if (route === "create") return <CreateSquadScreen onBack={() => setRoute("welcome")} onDone={() => setRoute("welcome")} />;
+    if (route === "join") return <JoinSquadScreen onBack={() => setRoute("welcome")} onDone={() => setRoute("welcome")} />;
+    return <WelcomeScreen onCreate={() => setRoute("create")} onJoin={() => setRoute("join")} />;
+  }
 
   return (
-    <SquadProvider>
-      <AppShell active={screen} onChange={(s) => setScreen(s)} onFab={handleFab}>
-        {screen === "home" && <HomeScreen />}
-        {screen === "map" && <MapScreen />}
-        {screen === "expenses" && <ExpensesScreen key={openAdd} openAddOnMount={openAdd > 0} />}
-        {screen === "late" && <LateScreen />}
-        {screen === "profile" && <ProfileScreen />}
-      </AppShell>
-    </SquadProvider>
+    <div className="min-h-dvh max-w-md mx-auto bg-[#0D0D2B] text-white relative">
+      {tab === "home" && <HomeScreen />}
+      {tab === "expenses" && <ExpensesScreen />}
+      {tab === "late" && <LateScreen />}
+      {tab === "map" && <MapScreen />}
+      {tab === "profile" && <ProfileScreen />}
+      <BottomNav active={tab} onChange={setTab} />
+    </div>
   );
 };
 
-const Index = () => {
-  return (
-    <AuthProvider>
-      <FirebaseAuthProvider>
-        <AppContent />
-      </FirebaseAuthProvider>
-    </AuthProvider>
-  );
-};
+const Index = () => (
+  <AppProvider>
+    <Inner />
+  </AppProvider>
+);
 
 export default Index;
