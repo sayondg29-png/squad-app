@@ -6,13 +6,23 @@ import { Loader2 } from "lucide-react";
 export function LoginScreen() {
   const [busy, setBusy] = useState(false);
 
-  const onLogin = async () => {
+  const handleGoogleLogin = async () => {
     setBusy(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: "https://squad-app-blue.vercel.app" },
+      options: {
+        redirectTo: "https://squad-app-blue.vercel.app",
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent",
+        },
+      },
     });
-    if (error) { toast.error(error.message); setBusy(false); }
+    if (error) {
+      console.error("Login error:", error.message);
+      toast.error(error.message);
+      setBusy(false);
+    }
   };
 
   return (
@@ -27,7 +37,8 @@ export function LoginScreen() {
         <p className="mt-3 text-sm text-[#888888]">The ultimate app for your friend group</p>
 
         <button
-          onClick={onLogin}
+          type="button"
+          onClick={handleGoogleLogin}
           disabled={busy}
           className="mt-12 w-full py-4 rounded-2xl bg-white text-neutral-900 font-semibold tap-scale disabled:opacity-60 flex items-center justify-center gap-3 shadow-glow"
         >
