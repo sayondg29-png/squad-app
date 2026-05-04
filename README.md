@@ -67,7 +67,6 @@
 CSE Student — Batch 2025
 Chittagong University of Engineering & Technology (CUET)
 
-> Built with zero prior app development experience 
 > using vibe coding and AI tools. Proof that vision 
 > matters more than experience.
 
@@ -84,6 +83,7 @@ Chittagong University of Engineering & Technology (CUET)
 - [ ] Live location on map
 
 ---
+
 
 ## 📄 License
 
