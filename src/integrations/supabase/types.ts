@@ -14,37 +14,40 @@ export type Database = {
   }
   public: {
     Tables: {
-      live_locations: {
+      expenses: {
         Row: {
-          accuracy: number | null
+          amount: number
+          created_at: string
+          created_by: string
           id: string
-          lat: number
-          lng: number
+          name: string
+          paid_by: string
+          split_with: string[]
           squad_id: string
-          updated_at: string
-          user_id: string
         }
         Insert: {
-          accuracy?: number | null
+          amount: number
+          created_at?: string
+          created_by: string
           id?: string
-          lat: number
-          lng: number
+          name: string
+          paid_by: string
+          split_with?: string[]
           squad_id: string
-          updated_at?: string
-          user_id: string
         }
         Update: {
-          accuracy?: number | null
+          amount?: number
+          created_at?: string
+          created_by?: string
           id?: string
-          lat?: number
-          lng?: number
+          name?: string
+          paid_by?: string
+          split_with?: string[]
           squad_id?: string
-          updated_at?: string
-          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "live_locations_squad_id_fkey"
+            foreignKeyName: "expenses_squad_id_fkey"
             columns: ["squad_id"]
             isOneToOne: false
             referencedRelation: "squads"
@@ -52,37 +55,40 @@ export type Database = {
           },
         ]
       }
-      member_status: {
+      late_events: {
         Row: {
-          eta_minutes: number | null
+          created_at: string
+          created_by: string
+          event_name: string
           id: string
-          kind: Database["public"]["Enums"]["status_kind"]
+          minutes: number
           note: string | null
           squad_id: string
-          updated_at: string
           user_id: string
         }
         Insert: {
-          eta_minutes?: number | null
+          created_at?: string
+          created_by: string
+          event_name: string
           id?: string
-          kind?: Database["public"]["Enums"]["status_kind"]
+          minutes: number
           note?: string | null
           squad_id: string
-          updated_at?: string
           user_id: string
         }
         Update: {
-          eta_minutes?: number | null
+          created_at?: string
+          created_by?: string
+          event_name?: string
           id?: string
-          kind?: Database["public"]["Enums"]["status_kind"]
+          minutes?: number
           note?: string | null
           squad_id?: string
-          updated_at?: string
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "member_status_squad_id_fkey"
+            foreignKeyName: "late_events_squad_id_fkey"
             columns: ["squad_id"]
             isOneToOne: false
             referencedRelation: "squads"
@@ -92,87 +98,61 @@ export type Database = {
       }
       profiles: {
         Row: {
-          avatar_color: string
+          age: number | null
+          avatar_choice: string | null
+          bio: string | null
           created_at: string
-          display_name: string
           id: string
-          updated_at: string
-          user_id: string
+          name: string
+          squad_id: string | null
         }
         Insert: {
-          avatar_color?: string
+          age?: number | null
+          avatar_choice?: string | null
+          bio?: string | null
           created_at?: string
-          display_name?: string
-          id?: string
-          updated_at?: string
-          user_id: string
+          id: string
+          name: string
+          squad_id?: string | null
         }
         Update: {
-          avatar_color?: string
+          age?: number | null
+          avatar_choice?: string | null
+          bio?: string | null
           created_at?: string
-          display_name?: string
           id?: string
-          updated_at?: string
-          user_id?: string
+          name?: string
+          squad_id?: string | null
         }
         Relationships: []
-      }
-      squad_members: {
-        Row: {
-          id: string
-          joined_at: string
-          role: Database["public"]["Enums"]["squad_role"]
-          squad_id: string
-          user_id: string
-        }
-        Insert: {
-          id?: string
-          joined_at?: string
-          role?: Database["public"]["Enums"]["squad_role"]
-          squad_id: string
-          user_id: string
-        }
-        Update: {
-          id?: string
-          joined_at?: string
-          role?: Database["public"]["Enums"]["squad_role"]
-          squad_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "squad_members_squad_id_fkey"
-            columns: ["squad_id"]
-            isOneToOne: false
-            referencedRelation: "squads"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       squads: {
         Row: {
           created_at: string
           created_by: string
+          emoji: string
           id: string
           invite_code: string
+          members: string[]
           name: string
-          updated_at: string
         }
         Insert: {
           created_at?: string
           created_by: string
+          emoji: string
           id?: string
           invite_code: string
+          members?: string[]
           name: string
-          updated_at?: string
         }
         Update: {
           created_at?: string
           created_by?: string
+          emoji?: string
           id?: string
           invite_code?: string
+          members?: string[]
           name?: string
-          updated_at?: string
         }
         Relationships: []
       }
@@ -181,11 +161,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      find_squad_by_invite: { Args: { _code: string }; Returns: string }
-      is_squad_member: {
-        Args: { _squad: string; _user: string }
-        Returns: boolean
-      }
+      join_squad: { Args: { _code: string }; Returns: string }
+      user_squad: { Args: { _user: string }; Returns: string }
     }
     Enums: {
       squad_role: "owner" | "member"
