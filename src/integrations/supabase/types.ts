@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      checkins: {
+        Row: {
+          id: string
+          minutes: number | null
+          squad_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          minutes?: number | null
+          squad_id: string
+          status: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          minutes?: number | null
+          squad_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       expenses: {
         Row: {
           amount: number
