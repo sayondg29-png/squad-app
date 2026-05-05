@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useApp } from "../lib/AppContext";
 import { Avatar } from "../components/Avatar";
-import { Copy, LogOut, Loader2, X } from "lucide-react";
+import { Copy, LogOut, Loader2, X, Share2, Users } from "lucide-react";
+import { SquadDetailsScreen } from "./SquadDetailsScreen";
 import { toast } from "sonner";
 
 type Activity = { id: string; type: "expense" | "late"; text: string; at: string };
@@ -32,6 +33,9 @@ export function HomeScreen() {
   const [leaving, setLeaving] = useState(false);
   const [otwMin, setOtwMin] = useState("");
   const [lateMin, setLateMin] = useState("");
+  const [showSquad, setShowSquad] = useState(false);
+
+  const inviteLink = squad ? `https://squad-app-blue.vercel.app/join/${squad.id}` : "";
 
   useEffect(() => {
     if (!squad) return;
@@ -76,9 +80,20 @@ export function HomeScreen() {
 
   const copyCode = async () => {
     if (!squad) return;
-    await navigator.clipboard.writeText(squad.invite_code);
+    await navigator.clipboard.writeText(inviteLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const shareLink = async () => {
+    if (!squad) return;
+    const text = "Join my Squad on Squad App!";
+    if (navigator.share) {
+      try { await navigator.share({ title: "Squad App", text, url: inviteLink }); } catch {}
+    } else {
+      await navigator.clipboard.writeText(inviteLink);
+      toast.success("Link copied!");
+    }
   };
 
   const leaveSquad = async () => {
@@ -95,6 +110,7 @@ export function HomeScreen() {
   };
 
   if (!squad) return null;
+  if (showSquad) return <SquadDetailsScreen onBack={() => setShowSquad(false)} />;
   const myCheckin = checkins.find(c => c.user_id === user?.id);
 
   return (
@@ -161,15 +177,27 @@ export function HomeScreen() {
         </div>
       </div>
 
-      {/* Invite Code */}
-      <div className="mt-6 rounded-2xl bg-[#1E1E3F] border-2 border-[#1A1AFF] p-5 text-center">
-        <p className="text-xs text-[#888] uppercase tracking-widest">Squad Code</p>
-        <p className="mt-2 text-3xl font-bold text-white tracking-[0.4em] uppercase">{squad.invite_code}</p>
-        <button onClick={copyCode}
-          className="mt-3 px-5 py-2 rounded-xl bg-[#1A1AFF] text-white text-sm font-semibold tap-scale inline-flex items-center gap-2">
-          <Copy size={14} /> {copied ? "Copied! ✅" : "Copy Code"}
-        </button>
+      {/* Invite Link */}
+      <div className="mt-6 rounded-2xl bg-[#1E1E3F] border-2 border-[#1A1AFF] p-5">
+        <p className="text-xs text-[#888] uppercase tracking-widest text-center">Invite Link</p>
+        <p className="mt-2 text-xs text-[#00E5FF] text-center break-all px-1">{inviteLink}</p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button onClick={copyCode}
+            className="py-2 rounded-xl bg-[#1A1AFF] text-white text-sm font-semibold tap-scale flex items-center justify-center gap-2">
+            <Copy size={14} /> {copied ? "Copied! ✅" : "Copy Link"}
+          </button>
+          <button onClick={shareLink}
+            className="py-2 rounded-xl bg-[#00E5FF] text-[#0D0D2B] text-sm font-semibold tap-scale flex items-center justify-center gap-2">
+            <Share2 size={14} /> Share
+          </button>
+        </div>
       </div>
+
+      {/* Squad Details Button */}
+      <button onClick={() => setShowSquad(true)}
+        className="mt-3 w-full py-3 rounded-xl bg-[#1A1AFF] text-white font-semibold tap-scale flex items-center justify-center gap-2">
+        <Users size={16} /> Squad
+      </button>
 
       {/* Leave Squad */}
       <button onClick={() => setConfirmLeave(true)}
