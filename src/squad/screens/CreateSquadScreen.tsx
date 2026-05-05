@@ -13,7 +13,7 @@ export function CreateSquadScreen({ onBack, onDone }: { onBack: () => void; onDo
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{ name: string; emoji: string; code: string } | null>(null);
+  const [done, setDone] = useState<{ id: string; name: string; emoji: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
   const submit = async () => {
@@ -28,18 +28,19 @@ export function CreateSquadScreen({ onBack, onDone }: { onBack: () => void; onDo
     if (error || !data) { toast.error(error?.message || "Failed"); setBusy(false); return; }
     const { error: pErr } = await supabase.from("profiles").update({ squad_id: data.id }).eq("id", user.id);
     if (pErr) { toast.error(pErr.message); setBusy(false); return; }
-    setDone({ name: data.name, emoji: data.emoji, code: data.invite_code });
+    setDone({ id: data.id, name: data.name, emoji: data.emoji });
     setBusy(false);
   };
 
   const copy = async () => {
     if (!done) return;
-    await navigator.clipboard.writeText(done.code);
+    await navigator.clipboard.writeText(`https://squad-app-blue.vercel.app/join/${done.id}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
 
   if (done) {
+    const link = `https://squad-app-blue.vercel.app/join/${done.id}`;
     return (
       <div className="min-h-dvh max-w-md mx-auto px-6 py-10 bg-[#0D0D2B] flex flex-col items-center text-center">
         <div className="w-20 h-20 rounded-full bg-[#00FF88]/20 flex items-center justify-center">
@@ -48,11 +49,11 @@ export function CreateSquadScreen({ onBack, onDone }: { onBack: () => void; onDo
         <h1 className="mt-6 text-3xl font-bold text-[#00FF88]">Squad Created!</h1>
         <p className="mt-3 text-2xl text-white">{done.emoji} {done.name}</p>
         <div className="mt-8 w-full rounded-2xl bg-[#1a1a3a] border-2 border-[#1A1AFF] p-6">
-          <p className="text-xs text-[#888] uppercase tracking-widest">Invite code</p>
-          <p className="mt-2 text-4xl font-bold text-white tracking-[0.3em]">{done.code}</p>
+          <p className="text-xs text-[#888] uppercase tracking-widest">Invite Link</p>
+          <p className="mt-2 text-sm text-[#00E5FF] break-all">{link}</p>
         </div>
         <button onClick={copy} className="mt-4 py-3 px-6 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white tap-scale flex items-center gap-2">
-          <Copy size={16} /> {copied ? "Copied!" : "Copy Code"}
+          <Copy size={16} /> {copied ? "Copied!" : "Copy Link"}
         </button>
         <button onClick={async () => { await refreshProfile(); onDone(); }} className="mt-auto w-full py-4 rounded-2xl bg-[#1A1AFF] text-white font-semibold tap-scale">
           Go to Dashboard
