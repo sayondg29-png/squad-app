@@ -6,7 +6,7 @@ import { ArrowLeft, Check, Copy, Loader2 } from "lucide-react";
 
 const EMOJIS = ["🔥","⚡","🎯","🚀","👑","💎","🎮","🏆","🌙","🎉","💪","😎"];
 const CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const code = () => Array.from({length:6}, () => CHARS[Math.floor(Math.random()*CHARS.length)]).join("");
+const code = () => Array.from({length:6}, () => CHARS[Math.floor(Math.random()*CHARS.length)]).join("").toUpperCase();
 
 export function CreateSquadScreen({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
   const { user, refreshProfile } = useApp();
@@ -21,7 +21,7 @@ export function CreateSquadScreen({ onBack, onDone }: { onBack: () => void; onDo
     if (!emoji) return toast.error("Pick an emoji");
     if (!user) return;
     setBusy(true);
-    const c = code();
+    const c = code().toUpperCase();
     const { data, error } = await supabase.from("squads").insert({
       name: name.trim(), emoji, created_by: user.id, members: [user.id], invite_code: c,
     }).select().single();
