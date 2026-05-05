@@ -4,17 +4,22 @@ import { useApp } from "../lib/AppContext";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 export function JoinSquadScreen({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
-  const { refreshProfile } = useApp();
+  const { refreshProfile, user } = useApp();
   const [code, setCode] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
-    const c = code.toUpperCase().trim();
+    const c = code.trim().toUpperCase();
     if (c.length !== 6) { setErr("Enter a 6-character code"); return; }
     setBusy(true); setErr("");
+    const { data: sq } = await supabase.from("squads").select("id,name,members").eq("invite_code", c).maybeSingle();
+    if (!sq) { setErr("Invalid code — double check and try again!"); setBusy(false); return; }
+    if (user && (sq.members as string[]).includes(user.id)) {
+      setErr("You are already in this squad!"); setBusy(false); return;
+    }
     const { error } = await supabase.rpc("join_squad", { _code: c });
-    if (error) { setErr("Invalid code. Double check with your friend!"); setBusy(false); return; }
+    if (error) { setErr("Invalid code — double check and try again!"); setBusy(false); return; }
     await refreshProfile();
     onDone();
   };
