@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useApp } from "../lib/AppContext";
 import { Plus, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { Avatar } from "../components/Avatar";
 
 type Expense = { id: string; name: string; amount: number; paid_by: string; split_with: string[]; created_at: string };
 
@@ -40,35 +41,28 @@ export function ExpensesScreen() {
   if (!squad) return null;
   return (
     <div className="px-5 pt-6 pb-28">
-      <h1 className="text-2xl font-bold text-white">Expenses</h1>
-
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        {members.map(m => {
-          const b = balances[m.id] ?? 0;
-          const pos = b >= 0;
-          return (
-            <div key={m.id} className="rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] p-3">
-              <p className="text-xs text-[#888]">{m.name}</p>
-              <p className={`text-lg font-bold ${pos ? "text-[#00FF88]" : "text-[#E74C3C]"}`}>
-                {pos ? "+" : ""}${b.toFixed(2)}
-              </p>
-            </div>
-          );
-        })}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-white">Expenses</h1>
+        <button onClick={() => setOpen(true)}
+          className="px-4 py-2 rounded-xl bg-[#1A1AFF] text-white text-sm font-semibold tap-scale flex items-center gap-1">
+          <Plus size={16} /> Add Expense
+        </button>
       </div>
 
       <div className="mt-6 space-y-2">
         {list.length === 0 ? (
-          <div className="rounded-2xl bg-[#1a1a3a] border border-[#2a2a4a] p-6 text-center text-[#888]">
-            No expenses yet — add your first one! 💸
+          <div className="rounded-2xl bg-[#1E1E3F] border border-[#2a2a4a] p-8 text-center text-[#888]">
+            <div className="text-5xl mb-3">💸</div>
+            No expenses yet — add your first one!
           </div>
         ) : list.map(e => {
           const payer = members.find(m => m.id === e.paid_by)?.name ?? "Someone";
+          const date = new Date(e.created_at).toLocaleDateString();
           return (
-            <div key={e.id} className="rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] p-4 flex justify-between items-center">
+            <div key={e.id} className="rounded-xl bg-[#1E1E3F] border border-[#2a2a4a] p-4 flex justify-between items-center">
               <div>
                 <p className="text-white font-medium">{e.name}</p>
-                <p className="text-xs text-[#888]">Paid by {payer}</p>
+                <p className="text-xs text-[#888]">Paid by {payer} · {date}</p>
               </div>
               <p className="text-[#00E5FF] font-bold">${Number(e.amount).toFixed(2)}</p>
             </div>
@@ -76,10 +70,29 @@ export function ExpensesScreen() {
         })}
       </div>
 
-      <button onClick={() => setOpen(true)}
-        className="fixed bottom-24 right-1/2 translate-x-[calc(50%+8.5rem)] w-14 h-14 rounded-full bg-[#1A1AFF] text-white flex items-center justify-center shadow-glow tap-scale z-20">
-        <Plus size={26} />
-      </button>
+      <h3 className="mt-8 text-sm text-[#888] uppercase tracking-wider">Who Owes What</h3>
+      <div className="mt-3 space-y-2">
+        {members.map(m => {
+          const b = balances[m.id] ?? 0;
+          const isMe = m.id === user?.id;
+          let label = "all settled"; let color = "#888";
+          if (b > 0.01) { label = "gets back"; color = "#00FF88"; }
+          else if (b < -0.01) { label = "owes"; color = "#E74C3C"; }
+          return (
+            <div key={m.id} className="rounded-xl bg-[#1E1E3F] border border-[#2a2a4a] p-3 flex items-center gap-3">
+              <Avatar choice={m.avatar_choice} size={36} />
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm font-medium truncate">{m.name}{isMe ? " (you)" : ""}</p>
+                <p className="text-xs" style={{ color }}>{label}</p>
+              </div>
+              <p className="font-bold" style={{ color }}>{b > 0 ? "+" : ""}${Math.abs(b).toFixed(2)}</p>
+              {Math.abs(b) > 0.01 && (
+                <button onClick={() => toast.success("Marked as settled!")} className="text-xs px-2 py-1 rounded-lg bg-[#1A1AFF] text-white tap-scale">Settle</button>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
       {open && <AddExpense onClose={() => setOpen(false)} onSaved={load} />}
     </div>
