@@ -1,7 +1,7 @@
 import { useApp } from "../lib/AppContext";
-import { Plus, Link2 } from "lucide-react";
+import { Plus } from "lucide-react";
 
-export function WelcomeScreen({ onCreate, onJoin }: { onCreate: () => void; onJoin: () => void }) {
+export function WelcomeScreen({ onCreate }: { onCreate: () => void; onJoin?: () => void }) {
   const { profile } = useApp();
   const cards = [
     { e: "📍", t: "Live Location" },
@@ -25,9 +25,9 @@ export function WelcomeScreen({ onCreate, onJoin }: { onCreate: () => void; onJo
         <button onClick={onCreate} className="w-full py-4 rounded-2xl bg-[#1A1AFF] text-white font-semibold tap-scale flex items-center justify-center gap-2">
           <Plus size={20} /> Create a Squad
         </button>
-        <button onClick={onJoin} className="w-full py-4 rounded-2xl bg-transparent border-2 border-[#1A1AFF] text-[#1A1AFF] font-semibold tap-scale flex items-center justify-center gap-2">
-          <Link2 size={20} /> Join a Squad
-        </button>
+        <p className="text-center text-sm text-[#888] mt-2">
+          Got an invite link from a friend? Just open it to join their squad! 🔗
+        </p>
       </div>
     </div>
   );

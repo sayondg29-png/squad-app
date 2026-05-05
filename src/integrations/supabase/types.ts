@@ -189,6 +189,7 @@ export type Database = {
     }
     Functions: {
       join_squad: { Args: { _code: string }; Returns: string }
+      join_squad_by_id: { Args: { _squad_id: string }; Returns: string }
       user_squad: { Args: { _user: string }; Returns: string }
     }
     Enums: {

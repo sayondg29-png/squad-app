@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
+import { toast } from "sonner";
 
 export type Profile = {
   id: string;
@@ -47,6 +48,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return (data as Profile) ?? null;
   }, []);
 
+  const processPendingJoin = useCallback(async (p: Profile | null): Promise<Profile | null> => {
+    if (!p) return p;
+    let pending: string | null = null;
+    try { pending = localStorage.getItem("pendingSquadId"); } catch {}
+    if (!pending) return p;
+    const { data: sq } = await supabase.from("squads").select("id,members").eq("id", pending).maybeSingle();
+    if (!sq) {
+      try { localStorage.removeItem("pendingSquadId"); } catch {}
+      toast.error("Squad not found");
+      return p;
+    }
+    if ((sq.members as string[]).includes(p.id)) {
+      try { localStorage.removeItem("pendingSquadId"); } catch {}
+      toast.success("You are already in this squad! 😄");
+      if (p.squad_id !== sq.id) {
+        await supabase.from("profiles").update({ squad_id: sq.id }).eq("id", p.id);
+        const { data: refreshed } = await supabase.from("profiles").select("*").eq("id", p.id).maybeSingle();
+        setProfile((refreshed as Profile) ?? p);
+        return (refreshed as Profile) ?? p;
+      }
+      return p;
+    }
+    const { error } = await supabase.rpc("join_squad_by_id", { _squad_id: pending });
+    try { localStorage.removeItem("pendingSquadId"); } catch {}
+    if (error) { toast.error(error.message); return p; }
+    toast.success("Joined squad! 🎉");
+    const { data: refreshed } = await supabase.from("profiles").select("*").eq("id", p.id).maybeSingle();
+    setProfile((refreshed as Profile) ?? p);
+    return (refreshed as Profile) ?? p;
+  }, []);
+
   const loadSquad = useCallback(async (squadId: string | null) => {
     if (!squadId) { setSquad(null); setMembers([]); return; }
     const { data } = await supabase.from("squads").select("*").eq("id", squadId).maybeSingle();
@@ -63,7 +95,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!s) { setProfile(null); setSquad(null); setMembers([]); setLoading(false); }
       else {
         setTimeout(async () => {
-          const p = await loadProfile(s.user.id);
+          let p = await loadProfile(s.user.id);
+          p = await processPendingJoin(p);
           await loadSquad(p?.squad_id ?? null);
           setLoading(false);
         }, 0);
@@ -72,13 +105,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data }) => {
       setSession(data.session);
       if (data.session) {
-        const p = await loadProfile(data.session.user.id);
+        let p = await loadProfile(data.session.user.id);
+        p = await processPendingJoin(p);
         await loadSquad(p?.squad_id ?? null);
       }
       setLoading(false);
     });
     return () => sub.subscription.unsubscribe();
-  }, [loadProfile, loadSquad]);
+  }, [loadProfile, loadSquad, processPendingJoin]);
 
   // Realtime sync
   useEffect(() => {
@@ -93,10 +127,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = useCallback(async () => {
     if (session?.user) {
-      const p = await loadProfile(session.user.id);
+      let p = await loadProfile(session.user.id);
+      p = await processPendingJoin(p);
       await loadSquad(p?.squad_id ?? null);
     }
-  }, [session, loadProfile, loadSquad]);
+  }, [session, loadProfile, loadSquad, processPendingJoin]);
 
   const refreshSquad = useCallback(async () => {
     await loadSquad(profile?.squad_id ?? null);
