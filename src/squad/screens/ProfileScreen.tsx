@@ -6,18 +6,20 @@ import { LogOut } from "lucide-react";
 
 export function ProfileScreen() {
   const { profile, squad, members, user, signOut } = useApp();
-  const [stats, setStats] = useState({ lateMin: 0, paid: 0 });
+  const [stats, setStats] = useState({ lateMin: 0, paid: 0, expensesCount: 0 });
 
   useEffect(() => {
     if (!squad || !user) return;
     (async () => {
-      const [{ data: la }, { data: ex }] = await Promise.all([
+      const [{ data: la }, { data: ex }, { count }] = await Promise.all([
         supabase.from("late_events").select("minutes").eq("squad_id", squad.id).eq("user_id", user.id),
         supabase.from("expenses").select("amount").eq("squad_id", squad.id).eq("paid_by", user.id),
+        supabase.from("expenses").select("*", { count: "exact", head: true }).eq("squad_id", squad.id),
       ]);
       setStats({
         lateMin: (la ?? []).reduce((s,r) => s + r.minutes, 0),
         paid: (ex ?? []).reduce((s,r) => s + Number(r.amount), 0),
+        expensesCount: count ?? 0,
       });
     })();
   }, [squad?.id, user?.id]);
@@ -33,10 +35,11 @@ export function ProfileScreen() {
         {squad && <p className="mt-2 text-[#00E5FF]">{squad.emoji} {squad.name}</p>}
       </div>
 
-      <div className="mt-8 grid grid-cols-3 gap-2">
-        <Stat label="Late min" value={stats.lateMin.toString()} />
-        <Stat label="Paid" value={`$${stats.paid.toFixed(0)}`} />
-        <Stat label="Members" value={members.length.toString()} />
+      <div className="mt-8 grid grid-cols-2 gap-2">
+        <Stat label="Total Min Late" value={stats.lateMin.toString()} />
+        <Stat label="Total Paid" value={`$${stats.paid.toFixed(0)}`} />
+        <Stat label="Squad Members" value={members.length.toString()} />
+        <Stat label="Expenses Logged" value={stats.expensesCount.toString()} />
       </div>
 
       <button onClick={signOut}
