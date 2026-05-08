@@ -141,30 +141,45 @@ export type Database = {
           created_by: string
           date: string | null
           description: string | null
+          event_members: string[]
+          event_name: string
           id: string
-          name: string
+          kicked_members: string[]
+          notifications: Json
+          seen_by: string[]
           squad_id: string
           status: string
+          summaries_seen: string[]
         }
         Insert: {
           created_at?: string
           created_by: string
           date?: string | null
           description?: string | null
+          event_members?: string[]
+          event_name: string
           id?: string
-          name: string
+          kicked_members?: string[]
+          notifications?: Json
+          seen_by?: string[]
           squad_id: string
           status?: string
+          summaries_seen?: string[]
         }
         Update: {
           created_at?: string
           created_by?: string
           date?: string | null
           description?: string | null
+          event_members?: string[]
+          event_name?: string
           id?: string
-          name?: string
+          kicked_members?: string[]
+          notifications?: Json
+          seen_by?: string[]
           squad_id?: string
           status?: string
+          summaries_seen?: string[]
         }
         Relationships: []
       }

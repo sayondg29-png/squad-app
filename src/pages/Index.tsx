@@ -11,6 +11,7 @@ import { LateScreen } from "@/squad/screens/LateScreen";
 import { MapScreen } from "@/squad/screens/MapScreen";
 import { ProfileScreen } from "@/squad/screens/ProfileScreen";
 import { BottomNav, Tab } from "@/squad/components/BottomNav";
+import { EventNotifications } from "@/squad/components/EventNotifications";
 
 type WelcomeRoute = "welcome" | "create";
 
@@ -43,6 +44,7 @@ const Inner = () => {
       {tab === "map" && <MapScreen />}
       {tab === "profile" && <ProfileScreen />}
       <BottomNav active={tab} onChange={setTab} />
+      <EventNotifications />
     </div>
   );
 };

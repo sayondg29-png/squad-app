@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useApp } from "../lib/AppContext";
-import { Plus, X, Loader2, Calendar as CalIcon, Crown, Pencil, Check, Archive } from "lucide-react";
+import { Plus, X, Loader2, Calendar as CalIcon, Crown, Pencil, Check, Archive, Users, UserMinus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar } from "../components/Avatar";
 
@@ -21,15 +21,28 @@ type Expense = {
   settled_users: string[];
 };
 
+type NotificationEntry = {
+  type: "added" | "kicked";
+  user_id: string;
+  event_name: string;
+  by?: string;
+  at: string;
+};
+
 type Meeting = {
   id: string;
   squad_id: string;
-  name: string;
+  event_name: string;
   description: string | null;
   date: string | null;
   created_by: string;
   status: "active" | "ended";
   created_at: string;
+  event_members: string[];
+  kicked_members: string[];
+  notifications: NotificationEntry[];
+  seen_by: string[];
+  summaries_seen: string[];
 };
 
 const fmt = (n: number) => `BDT ${Number(n).toFixed(2)}`;
@@ -60,6 +73,8 @@ export function ExpensesScreen() {
   const [showCreateMeeting, setShowCreateMeeting] = useState(false);
   const [showPast, setShowPast] = useState(false);
   const [summaryMeetingId, setSummaryMeetingId] = useState<string | null>(null);
+  const [manageMeetingId, setManageMeetingId] = useState<string | null>(null);
+  const [forcedSummaryId, setForcedSummaryId] = useState<string | null>(null);
 
   const memberIds = useMemo(() => members.map(m => m.id), [members]);
 
@@ -70,7 +85,7 @@ export function ExpensesScreen() {
       sb.from("meetings").select("*").eq("squad_id", squad.id).order("created_at", { ascending: false }),
     ]);
     if (e1) toast.error("Couldn't load expenses");
-    if (e2) toast.error("Couldn't load meetings");
+    if (e2) toast.error("Couldn't load events");
     setExpenses((ex as Expense[]) ?? []);
     setMeetings((mt as Meeting[]) ?? []);
   };
@@ -87,6 +102,28 @@ export function ExpensesScreen() {
     // eslint-disable-next-line
   }, [squad?.id]);
 
+  // Auto-show ended event summary to non-admin members who haven't seen it
+  useEffect(() => {
+    if (!user || forcedSummaryId || summaryMeetingId) return;
+    const pending = meetings.find(m =>
+      m.status === "ended" &&
+      m.created_by !== user.id &&
+      (m.event_members ?? []).includes(user.id) &&
+      !(m.summaries_seen ?? []).includes(user.id)
+    );
+    if (pending) setForcedSummaryId(pending.id);
+  }, [meetings, user, forcedSummaryId, summaryMeetingId]);
+
+  // Visible (the current user is a member of) active meetings
+  const visibleActive = useMemo(
+    () => meetings.filter(m => m.status === "active" && (m.event_members ?? []).includes(user?.id ?? "")),
+    [meetings, user]
+  );
+  const visibleEnded = useMemo(
+    () => meetings.filter(m => m.status === "ended" && ((m.event_members ?? []).includes(user?.id ?? "") || m.created_by === user?.id)),
+    [meetings, user]
+  );
+
   // balances across ALL expenses (general view)
   const balances = useMemo(() => {
     const b: Record<string, number> = {};
@@ -99,8 +136,8 @@ export function ExpensesScreen() {
         if (b[uid] !== undefined) {
           const isSettled = (e.settled_users ?? []).includes(uid);
           if (!isSettled) b[uid] -= amt;
-          else if (uid === e.paid_by) {} // payer keeps credit
-          else b[e.paid_by] -= amt; // settled => debt resolved, remove credit too
+          else if (uid === e.paid_by) {}
+          else b[e.paid_by] -= amt;
         }
       });
     });
@@ -109,10 +146,11 @@ export function ExpensesScreen() {
 
   if (!squad) return null;
 
-  const activeMeetings = meetings.filter(m => m.status === "active");
-  const endedMeetings = meetings.filter(m => m.status === "ended");
   const generalExpenses = expenses.filter(e => !e.meeting_id);
 
+  if (forcedSummaryId) {
+    return <MeetingSummary meetingId={forcedSummaryId} onBack={() => setForcedSummaryId(null)} onArchived={() => { setForcedSummaryId(null); load(); }} forceMarkSeen />;
+  }
   if (summaryMeetingId) {
     return <MeetingSummary meetingId={summaryMeetingId} onBack={() => setSummaryMeetingId(null)} onArchived={() => { setSummaryMeetingId(null); load(); }} />;
   }
@@ -121,19 +159,19 @@ export function ExpensesScreen() {
     <div className="px-5 pt-6 pb-28">
       <h1 className="text-2xl font-bold text-white">Expenses</h1>
 
-      {/* Active meetings */}
-      {activeMeetings.length > 0 && (
+      {visibleActive.length > 0 && (
         <section className="mt-5">
-          <h3 className="text-xs uppercase tracking-wider text-[#888] mb-2">Active Meetings</h3>
+          <h3 className="text-xs uppercase tracking-wider text-[#888] mb-2">Active Events</h3>
           <div className="space-y-2">
-            {activeMeetings.map(m => {
+            {visibleActive.map(m => {
               const count = expenses.filter(e => e.meeting_id === m.id).length;
               const isCreator = m.created_by === user?.id;
+              const memberCount = (m.event_members ?? []).length;
               return (
                 <div key={m.id} className="rounded-2xl bg-[#1E1E3F] border border-[#00E5FF]/30 p-4">
                   <div className="flex justify-between items-start gap-3">
                     <div className="min-w-0">
-                      <p className="text-white font-semibold truncate">{m.name}</p>
+                      <p className="text-white font-semibold truncate">{m.event_name}</p>
                       <p className="text-xs text-[#888] mt-0.5">
                         {m.date ? new Date(m.date).toLocaleDateString() : "No date"} · {count} {count === 1 ? "expense" : "expenses"}
                       </p>
@@ -141,9 +179,15 @@ export function ExpensesScreen() {
                     </div>
                     {isCreator && (
                       <button onClick={() => setSummaryMeetingId(m.id)}
-                        className="text-xs px-3 py-1.5 rounded-lg bg-[#E74C3C] text-white tap-scale shrink-0">End</button>
+                        className="text-xs px-3 py-1.5 rounded-lg bg-[#E74C3C] text-white tap-scale shrink-0">End Event</button>
                     )}
                   </div>
+                  {isCreator && (
+                    <button onClick={() => setManageMeetingId(m.id)}
+                      className="mt-3 w-full py-2 rounded-lg bg-[#1A1AFF]/30 border border-[#1A1AFF]/50 text-[#00E5FF] text-xs font-semibold tap-scale flex items-center justify-center gap-1.5">
+                      <Users size={14} /> Manage Members ({memberCount})
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -151,7 +195,6 @@ export function ExpensesScreen() {
         </section>
       )}
 
-      {/* Action buttons */}
       <div className="mt-5 grid grid-cols-2 gap-2">
         <button onClick={() => setShowAddExpense(true)}
           className="py-3 rounded-xl bg-[#1A1AFF] text-white font-semibold tap-scale flex items-center justify-center gap-1.5 text-sm">
@@ -159,11 +202,10 @@ export function ExpensesScreen() {
         </button>
         <button onClick={() => setShowCreateMeeting(true)}
           className="py-3 rounded-xl bg-[#00E5FF] text-[#0D0D2B] font-semibold tap-scale flex items-center justify-center gap-1.5 text-sm">
-          <CalIcon size={16} /> Create Meeting
+          <CalIcon size={16} /> Create Event
         </button>
       </div>
 
-      {/* General expenses */}
       <section className="mt-6">
         <h3 className="text-xs uppercase tracking-wider text-[#888] mb-2">General Expenses</h3>
         {generalExpenses.length === 0 ? (
@@ -177,13 +219,12 @@ export function ExpensesScreen() {
         )}
       </section>
 
-      {/* Per-meeting expenses */}
-      {activeMeetings.map(m => {
+      {visibleActive.map(m => {
         const list = expenses.filter(e => e.meeting_id === m.id);
         if (list.length === 0) return null;
         return (
           <section key={m.id} className="mt-6">
-            <h3 className="text-xs uppercase tracking-wider text-[#00E5FF] mb-2">{m.name} expenses</h3>
+            <h3 className="text-xs uppercase tracking-wider text-[#00E5FF] mb-2">{m.event_name} expenses</h3>
             <div className="space-y-2">
               {list.map(e => <ExpenseCard key={e.id} e={e} onChanged={load} />)}
             </div>
@@ -191,7 +232,6 @@ export function ExpensesScreen() {
         );
       })}
 
-      {/* Who Owes What */}
       <h3 className="mt-8 text-xs uppercase tracking-wider text-[#888]">Who Owes What</h3>
       <div className="mt-2 space-y-2">
         {members.map(m => {
@@ -213,15 +253,17 @@ export function ExpensesScreen() {
         })}
       </div>
 
-      {/* Past meetings */}
       <button onClick={() => setShowPast(true)}
         className="mt-6 w-full py-3 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-[#00E5FF] font-semibold tap-scale flex items-center justify-center gap-2">
-        <Archive size={16} /> View Past Meetings ({endedMeetings.length})
+        <Archive size={16} /> View Past Events ({visibleEnded.length})
       </button>
 
-      {showAddExpense && <AddExpense meetings={activeMeetings} onClose={() => setShowAddExpense(false)} onSaved={load} />}
+      {showAddExpense && <AddExpense meetings={visibleActive} onClose={() => setShowAddExpense(false)} onSaved={load} />}
       {showCreateMeeting && <CreateMeeting onClose={() => setShowCreateMeeting(false)} onSaved={load} />}
-      {showPast && <PastMeetings meetings={endedMeetings} expenses={expenses} onClose={() => setShowPast(false)} onView={(id) => { setShowPast(false); setSummaryMeetingId(id); }} />}
+      {showPast && <PastMeetings meetings={visibleEnded} expenses={expenses} onClose={() => setShowPast(false)} onView={(id) => { setShowPast(false); setSummaryMeetingId(id); }} />}
+      {manageMeetingId && (
+        <ManageMembers meeting={meetings.find(m => m.id === manageMeetingId)!} onClose={() => setManageMeetingId(null)} onChanged={load} />
+      )}
     </div>
   );
 }
@@ -395,9 +437,21 @@ function AddExpense({ meetings, onClose, onSaved }: { meetings: Meeting[]; onClo
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [paidBy, setPaidBy] = useState(user?.id ?? "");
-  const [split, setSplit] = useState<string[]>(members.map(m => m.id));
   const [meetingId, setMeetingId] = useState<string>("");
   const [busy, setBusy] = useState(false);
+
+  // Available split members depend on selected event (or all squad)
+  const eligibleSplitIds = useMemo(() => {
+    if (meetingId) {
+      const ev = meetings.find(m => m.id === meetingId);
+      return ev?.event_members ?? [];
+    }
+    return members.map(m => m.id);
+  }, [meetingId, meetings, members]);
+
+  const [split, setSplit] = useState<string[]>(members.map(m => m.id));
+
+  useEffect(() => { setSplit(eligibleSplitIds); }, [meetingId, eligibleSplitIds.join(",")]); // eslint-disable-line
 
   const toggle = (id: string) => setSplit(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
 
@@ -432,13 +486,12 @@ function AddExpense({ meetings, onClose, onSaved }: { meetings: Meeting[]; onClo
         <button onClick={() => setTab("personal")} className={`py-2 rounded-lg text-sm font-semibold tap-scale ${tab === "personal" ? "bg-[#1A1AFF] text-white" : "text-[#888]"}`}>Personal</button>
       </div>
 
-      {meetings.length > 0 && (
-        <select value={meetingId} onChange={ev => setMeetingId(ev.target.value)}
-          className="mb-3 w-full px-4 py-3 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white">
-          <option value="">No Meeting (general)</option>
-          {meetings.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-        </select>
-      )}
+      <label className="text-xs text-[#888]">Link to event</label>
+      <select value={meetingId} onChange={ev => setMeetingId(ev.target.value)}
+        className="mt-1 mb-3 w-full px-4 py-3 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white">
+        <option value="">No Event (general)</option>
+        {meetings.map(m => <option key={m.id} value={m.id}>{m.event_name}</option>)}
+      </select>
 
       <div className="space-y-3">
         <input value={name} onChange={ev => setName(ev.target.value)} placeholder="Expense name"
@@ -450,12 +503,12 @@ function AddExpense({ meetings, onClose, onSaved }: { meetings: Meeting[]; onClo
           <>
             <select value={paidBy} onChange={ev => setPaidBy(ev.target.value)}
               className="w-full px-4 py-3 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white">
-              {members.map(m => <option key={m.id} value={m.id}>Paid by {m.name}</option>)}
+              {members.filter(m => eligibleSplitIds.includes(m.id)).map(m => <option key={m.id} value={m.id}>Paid by {m.name}</option>)}
             </select>
             <div>
               <p className="text-sm text-[#888] mb-2">Split with</p>
               <div className="space-y-2">
-                {members.map(m => (
+                {members.filter(m => eligibleSplitIds.includes(m.id)).map(m => (
                   <label key={m.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[#1a1a3a] border border-[#2a2a4a]">
                     <input type="checkbox" checked={split.includes(m.id)} onChange={() => toggle(m.id)} className="w-4 h-4 accent-[#1A1AFF]" />
                     <span className="text-white">{m.name}</span>
@@ -476,43 +529,150 @@ function AddExpense({ meetings, onClose, onSaved }: { meetings: Meeting[]; onClo
 }
 
 function CreateMeeting({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const { squad, user } = useApp();
+  const { squad, user, members } = useApp();
   const [name, setName] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [desc, setDesc] = useState("");
+  const [selected, setSelected] = useState<string[]>(user ? [user.id] : []);
   const [busy, setBusy] = useState(false);
 
+  const toggle = (id: string) => {
+    if (id === user?.id) return; // creator always included
+    setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
+  };
+
   const save = async () => {
-    if (!name.trim() || !squad || !user) { toast.error("Meeting name required"); return; }
+    if (!name.trim() || !squad || !user) { toast.error("Event name required"); return; }
     setBusy(true);
+    const event_members = Array.from(new Set([...selected, user.id]));
     const { error } = await sb.from("meetings").insert({
-      squad_id: squad.id, name: name.trim(), description: desc.trim() || null,
+      squad_id: squad.id, event_name: name.trim(), description: desc.trim() || null,
       date: date || null, created_by: user.id, status: "active",
+      event_members,
     });
     if (error) { toast.error(error.message); setBusy(false); return; }
-    toast.success("Meeting created");
+    toast.success("Event created");
     onSaved(); onClose();
   };
 
   return (
-    <Modal onClose={onClose} title="Create Meeting">
+    <Modal onClose={onClose} title="Create Event">
       <div className="space-y-3">
-        <input value={name} onChange={e => setName(e.target.value)} placeholder="What is this meeting called?"
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="What is this event called?"
           className="w-full px-4 py-3 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white placeholder:text-[#888]" />
         <input type="date" value={date} onChange={e => setDate(e.target.value)}
           className="w-full px-4 py-3 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white" />
-        <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Description (optional)" rows={3}
+        <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Description (optional)" rows={2}
           className="w-full px-4 py-3 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white placeholder:text-[#888]" />
+        <div>
+          <p className="text-xs text-[#888] mb-2 uppercase tracking-wider">Select Event Members</p>
+          <div className="space-y-2 max-h-60 overflow-y-auto">
+            {members.map(m => {
+              const isCreator = m.id === user?.id;
+              const checked = selected.includes(m.id);
+              return (
+                <label key={m.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg bg-[#1a1a3a] border border-[#2a2a4a] ${isCreator ? "opacity-90" : ""}`}>
+                  <input type="checkbox" checked={checked} disabled={isCreator} onChange={() => toggle(m.id)} className="w-4 h-4 accent-[#1A1AFF]" />
+                  <Avatar choice={m.avatar_choice} size={28} />
+                  <span className="text-white text-sm flex-1">{m.name}{isCreator ? " (you)" : ""}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
         <button onClick={save} disabled={busy}
           className="w-full py-3 rounded-xl bg-[#00E5FF] text-[#0D0D2B] font-semibold tap-scale disabled:opacity-60 flex items-center justify-center gap-2">
-          {busy && <Loader2 size={18} className="animate-spin" />} Create Meeting
+          {busy && <Loader2 size={18} className="animate-spin" />} Create Event
         </button>
       </div>
     </Modal>
   );
 }
 
-function MeetingSummary({ meetingId, onBack, onArchived }: { meetingId: string; onBack: () => void; onArchived: () => void }) {
+function ManageMembers({ meeting, onClose, onChanged }: { meeting: Meeting; onClose: () => void; onChanged: () => void }) {
+  const { members, user } = useApp();
+  const [busy, setBusy] = useState(false);
+  const [confirmKick, setConfirmKick] = useState<string | null>(null);
+
+  const inEvent = (id: string) => (meeting.event_members ?? []).includes(id);
+
+  const addMember = async (uid: string) => {
+    setBusy(true);
+    const next = Array.from(new Set([...(meeting.event_members ?? []), uid]));
+    const note: NotificationEntry = { type: "added", user_id: uid, event_name: meeting.event_name, by: user?.id, at: new Date().toISOString() };
+    const notifications = [...(meeting.notifications ?? []), note];
+    const { error } = await sb.from("meetings").update({ event_members: next, notifications }).eq("id", meeting.id);
+    setBusy(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Member added");
+    onChanged();
+  };
+
+  const kickMember = async (uid: string) => {
+    setBusy(true);
+    const next = (meeting.event_members ?? []).filter(x => x !== uid);
+    const kicked = Array.from(new Set([...(meeting.kicked_members ?? []), uid]));
+    const note: NotificationEntry = { type: "kicked", user_id: uid, event_name: meeting.event_name, by: user?.id, at: new Date().toISOString() };
+    const notifications = [...(meeting.notifications ?? []), note];
+    const { error } = await sb.from("meetings").update({ event_members: next, kicked_members: kicked, notifications }).eq("id", meeting.id);
+    setBusy(false);
+    if (error) { toast.error(error.message); return; }
+    setConfirmKick(null);
+    toast.success("Member removed");
+    onChanged();
+  };
+
+  const confirmName = members.find(m => m.id === confirmKick)?.name ?? "";
+
+  return (
+    <Modal onClose={onClose} title={`Manage: ${meeting.event_name}`}>
+      <div className="space-y-2">
+        {members.map(m => {
+          const here = inEvent(m.id);
+          const isMe = m.id === user?.id;
+          return (
+            <div key={m.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a]">
+              <Avatar choice={m.avatar_choice} size={36} />
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm font-medium truncate">{m.name}{isMe ? " (you)" : ""}</p>
+                <p className="text-[10px]" style={{ color: here ? "#00FF88" : "#888" }}>
+                  {here ? "✓ in event" : "− not in event"}
+                </p>
+              </div>
+              {here ? (
+                isMe ? <span className="text-[10px] text-[#888]">admin</span> : (
+                  <button disabled={busy} onClick={() => setConfirmKick(m.id)}
+                    className="text-[11px] px-3 py-1.5 rounded-lg bg-[#E74C3C] text-white font-semibold tap-scale flex items-center gap-1">
+                    <UserMinus size={12} /> Kick Out
+                  </button>
+                )
+              ) : (
+                <button disabled={busy} onClick={() => addMember(m.id)}
+                  className="text-[11px] px-3 py-1.5 rounded-lg bg-[#1A1AFF] text-white font-semibold tap-scale flex items-center gap-1">
+                  <UserPlus size={12} /> Add
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {confirmKick && (
+        <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4" onClick={() => setConfirmKick(null)}>
+          <div onClick={e => e.stopPropagation()} className="w-full max-w-sm rounded-2xl bg-[#1E1E3F] border border-[#2a2a4a] p-5">
+            <p className="text-white">Are you sure you want to remove <b>{confirmName}</b> from this event?</p>
+            <div className="mt-4 flex gap-2">
+              <button onClick={() => setConfirmKick(null)} className="flex-1 py-2 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white tap-scale">Cancel</button>
+              <button onClick={() => kickMember(confirmKick)} disabled={busy} className="flex-1 py-2 rounded-xl bg-[#E74C3C] text-white font-semibold tap-scale disabled:opacity-60">Remove</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function MeetingSummary({ meetingId, onBack, onArchived, forceMarkSeen }: { meetingId: string; onBack: () => void; onArchived: () => void; forceMarkSeen?: boolean }) {
   const { members, user } = useApp();
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [list, setList] = useState<Expense[]>([]);
@@ -532,9 +692,11 @@ function MeetingSummary({ meetingId, onBack, onArchived }: { meetingId: string; 
   }, [meetingId]);
 
   const isCreator = meeting?.created_by === user?.id;
+  const eventMemberSet = new Set(meeting?.event_members ?? []);
+  const eventMembers = members.filter(m => eventMemberSet.has(m.id));
   const total = list.reduce((s, e) => s + Number(e.amount), 0);
 
-  const perMember = members.map(m => {
+  const perMember = eventMembers.map(m => {
     const personal = list.filter(e => e.expense_type === "personal" && e.paid_by === m.id).reduce((s, e) => s + Number(e.amount), 0);
     const splitShare = list.filter(e => e.expense_type === "split").reduce((s, e) => {
       const map = getSplitMap(e, memberIds);
@@ -544,9 +706,8 @@ function MeetingSummary({ meetingId, onBack, onArchived }: { meetingId: string; 
   });
   const avg = perMember.length ? perMember.reduce((s, x) => s + x.total, 0) / perMember.length : 0;
 
-  // Who owes what for this meeting
   const balances: Record<string, number> = {};
-  members.forEach(m => balances[m.id] = 0);
+  eventMembers.forEach(m => balances[m.id] = 0);
   list.forEach(e => {
     if (e.expense_type === "personal") return;
     const split = getSplitMap(e, memberIds);
@@ -564,7 +725,15 @@ function MeetingSummary({ meetingId, onBack, onArchived }: { meetingId: string; 
     if (error) { toast.error(error.message); return; }
     setConfirmEnd(false);
     setMeeting(prev => prev ? { ...prev, status: "ended" } : prev);
-    toast.success("Meeting ended");
+    toast.success("Event ended");
+  };
+
+  const closeAndMarkSeen = async () => {
+    if (meeting && user && !(meeting.summaries_seen ?? []).includes(user.id)) {
+      const next = Array.from(new Set([...(meeting.summaries_seen ?? []), user.id]));
+      await sb.from("meetings").update({ summaries_seen: next }).eq("id", meeting.id);
+    }
+    onArchived();
   };
 
   if (!meeting) {
@@ -573,12 +742,12 @@ function MeetingSummary({ meetingId, onBack, onArchived }: { meetingId: string; 
 
   return (
     <div className="px-5 pt-6 pb-28">
-      <button onClick={onBack} className="text-[#00E5FF] text-sm mb-3 tap-scale">← Back</button>
-      <h1 className="text-2xl font-bold text-white">{meeting.name}</h1>
+      {!forceMarkSeen && <button onClick={onBack} className="text-[#00E5FF] text-sm mb-3 tap-scale">← Back</button>}
+      <h1 className="text-2xl font-bold text-white">{meeting.event_name}</h1>
       <p className="text-sm text-[#888]">{meeting.date ? new Date(meeting.date).toLocaleDateString() : ""}</p>
 
       {meeting.status === "active" && isCreator && (
-        <button onClick={() => setConfirmEnd(true)} className="mt-3 w-full py-2.5 rounded-xl bg-[#E74C3C] text-white font-semibold tap-scale">End Meeting</button>
+        <button onClick={() => setConfirmEnd(true)} className="mt-3 w-full py-2.5 rounded-xl bg-[#E74C3C] text-white font-semibold tap-scale">End Event</button>
       )}
 
       <div className="mt-5 rounded-2xl bg-gradient-to-br from-[#1A1AFF] to-[#00E5FF] p-5 text-center">
@@ -608,7 +777,7 @@ function MeetingSummary({ meetingId, onBack, onArchived }: { meetingId: string; 
 
       <h3 className="mt-6 text-xs uppercase tracking-wider text-[#888] mb-2">Who Owes What</h3>
       <div className="space-y-2">
-        {members.map(m => {
+        {eventMembers.map(m => {
           const b = balances[m.id] ?? 0;
           let label = "all settled"; let color = "#888";
           if (b > 0.01) { label = "gets back"; color = "#00FF88"; }
@@ -647,8 +816,8 @@ function MeetingSummary({ meetingId, onBack, onArchived }: { meetingId: string; 
         {list.filter(e => e.expense_type === "personal").length === 0 && <p className="text-xs text-[#888]">None</p>}
       </div>
 
-      {meeting.status === "ended" && isCreator && (
-        <button onClick={onArchived} className="mt-6 w-full py-3 rounded-xl bg-[#1A1AFF] text-white font-semibold tap-scale flex items-center justify-center gap-2">
+      {meeting.status === "ended" && (
+        <button onClick={closeAndMarkSeen} className="mt-6 w-full py-3 rounded-xl bg-[#1A1AFF] text-white font-semibold tap-scale flex items-center justify-center gap-2">
           <Check size={16} /> Close Summary
         </button>
       )}
@@ -656,10 +825,10 @@ function MeetingSummary({ meetingId, onBack, onArchived }: { meetingId: string; 
       {confirmEnd && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setConfirmEnd(false)}>
           <div onClick={e => e.stopPropagation()} className="w-full max-w-sm rounded-2xl bg-[#1E1E3F] border border-[#2a2a4a] p-5">
-            <p className="text-white">End this meeting and view summary?</p>
+            <p className="text-white">End this event and view summary?</p>
             <div className="mt-4 flex gap-2">
               <button onClick={() => setConfirmEnd(false)} className="flex-1 py-2 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white tap-scale">Cancel</button>
-              <button onClick={endMeeting} disabled={busy} className="flex-1 py-2 rounded-xl bg-[#E74C3C] text-white font-semibold tap-scale disabled:opacity-60">End Meeting</button>
+              <button onClick={endMeeting} disabled={busy} className="flex-1 py-2 rounded-xl bg-[#E74C3C] text-white font-semibold tap-scale disabled:opacity-60">End Event</button>
             </div>
           </div>
         </div>
@@ -670,9 +839,9 @@ function MeetingSummary({ meetingId, onBack, onArchived }: { meetingId: string; 
 
 function PastMeetings({ meetings, expenses, onClose, onView }: { meetings: Meeting[]; expenses: Expense[]; onClose: () => void; onView: (id: string) => void }) {
   return (
-    <Modal onClose={onClose} title="Past Meetings">
+    <Modal onClose={onClose} title="Past Events">
       {meetings.length === 0 ? (
-        <p className="text-[#888] text-sm text-center py-6">No past meetings yet</p>
+        <p className="text-[#888] text-sm text-center py-6">No past events yet</p>
       ) : (
         <div className="space-y-2">
           {meetings.map(m => {
@@ -680,7 +849,7 @@ function PastMeetings({ meetings, expenses, onClose, onView }: { meetings: Meeti
             return (
               <button key={m.id} onClick={() => onView(m.id)}
                 className="w-full text-left rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] p-3 tap-scale">
-                <p className="text-white font-medium">{m.name}</p>
+                <p className="text-white font-medium">{m.event_name}</p>
                 <p className="text-xs text-[#888]">{m.date ? new Date(m.date).toLocaleDateString() : ""} · {count} expenses</p>
               </button>
             );
