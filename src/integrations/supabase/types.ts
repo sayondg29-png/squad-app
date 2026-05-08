@@ -46,9 +46,13 @@ export type Database = {
           amount: number
           created_at: string
           created_by: string
+          custom_amounts: Json
+          expense_type: string
           id: string
+          meeting_id: string | null
           name: string
           paid_by: string
+          settled_users: string[]
           split_with: string[]
           squad_id: string
         }
@@ -56,9 +60,13 @@ export type Database = {
           amount: number
           created_at?: string
           created_by: string
+          custom_amounts?: Json
+          expense_type?: string
           id?: string
+          meeting_id?: string | null
           name: string
           paid_by: string
+          settled_users?: string[]
           split_with?: string[]
           squad_id: string
         }
@@ -66,9 +74,13 @@ export type Database = {
           amount?: number
           created_at?: string
           created_by?: string
+          custom_amounts?: Json
+          expense_type?: string
           id?: string
+          meeting_id?: string | null
           name?: string
           paid_by?: string
+          settled_users?: string[]
           split_with?: string[]
           squad_id?: string
         }
@@ -122,6 +134,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      meetings: {
+        Row: {
+          created_at: string
+          created_by: string
+          date: string | null
+          description: string | null
+          id: string
+          name: string
+          squad_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          date?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          squad_id: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          date?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          squad_id?: string
+          status?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
