@@ -46,7 +46,7 @@ export function ProfileScreen() {
 
       <div className="mt-8 grid grid-cols-2 gap-2">
         <Stat label="Total Min Late" value={stats.lateMin.toString()} />
-        <Stat label="Total Paid" value={`$${stats.paid.toFixed(0)}`} />
+        <Stat label="Total Paid" value={`BDT ${stats.paid.toFixed(0)}`} />
         <Stat label="Squad Members" value={members.length.toString()} />
         <Stat label="Expenses Logged" value={stats.expensesCount.toString()} />
       </div>
