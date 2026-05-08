@@ -70,7 +70,7 @@ export function SquadDetailsScreen({ onBack }: { onBack: () => void }) {
               <p className="text-xs mt-1">
                 <span className="text-[#F39C12]">{stats.perUserLate[m.id] ?? 0} min late</span>
                 <span className="text-[#888]"> · </span>
-                <span className="text-[#00FF88]">${(stats.perUserPaid[m.id] ?? 0).toFixed(0)} paid</span>
+                <span className="text-[#00FF88]">BDT {(stats.perUserPaid[m.id] ?? 0).toFixed(0)} paid</span>
               </p>
             </div>
           </div>
@@ -80,7 +80,7 @@ export function SquadDetailsScreen({ onBack }: { onBack: () => void }) {
       <h3 className="mt-8 text-sm text-[#888] uppercase tracking-wider">Squad Stats</h3>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Stat label="Total Expenses" value={String(stats.expenseCount)} />
-        <Stat label="Total Spent" value={`$${stats.totalSpent.toFixed(0)}`} />
+        <Stat label="Total Spent" value={`BDT ${stats.totalSpent.toFixed(0)}`} />
         <Stat label="Most Late" value={mostLate?.total ? mostLate.name : "—"} />
         <Stat label="Most Punctual" value={mostPunctual?.name ?? "—"} />
         <div className="col-span-2"><Stat label="Squad Created" value={created} /></div>

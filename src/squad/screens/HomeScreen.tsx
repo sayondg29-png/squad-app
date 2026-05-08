@@ -46,7 +46,7 @@ export function HomeScreen() {
       ]);
       const nameOf = (uid: string) => members.find(m => m.id === uid)?.name ?? "Someone";
       const a: Activity[] = [
-        ...(ex ?? []).map(e => ({ id: e.id, type: "expense" as const, text: `${nameOf(e.paid_by)} paid $${Number(e.amount).toFixed(2)} for ${e.name}`, at: e.created_at })),
+        ...(ex ?? []).map(e => ({ id: e.id, type: "expense" as const, text: `${nameOf(e.paid_by)} paid BDT ${Number(e.amount).toFixed(2)} for ${e.name}`, at: e.created_at })),
         ...(la ?? []).map(l => ({ id: l.id, type: "late" as const, text: `${nameOf(l.user_id)} was ${l.minutes}min late to ${l.event_name}`, at: l.created_at })),
       ].sort((x,y) => y.at.localeCompare(x.at)).slice(0, 5);
       setActs(a);
