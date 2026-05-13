@@ -135,6 +135,45 @@ export type Database = {
           },
         ]
       }
+      live_locations: {
+        Row: {
+          accuracy: number | null
+          event_id: string | null
+          heading: number | null
+          is_sharing: boolean
+          last_updated: string
+          latitude: number
+          longitude: number
+          speed: number | null
+          squad_id: string
+          user_id: string
+        }
+        Insert: {
+          accuracy?: number | null
+          event_id?: string | null
+          heading?: number | null
+          is_sharing?: boolean
+          last_updated?: string
+          latitude: number
+          longitude: number
+          speed?: number | null
+          squad_id: string
+          user_id: string
+        }
+        Update: {
+          accuracy?: number | null
+          event_id?: string | null
+          heading?: number | null
+          is_sharing?: boolean
+          last_updated?: string
+          latitude?: number
+          longitude?: number
+          speed?: number | null
+          squad_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       meetings: {
         Row: {
           created_at: string
@@ -145,6 +184,10 @@ export type Database = {
           event_name: string
           id: string
           kicked_members: string[]
+          location_lat: number | null
+          location_lng: number | null
+          location_name: string | null
+          meeting_time: string | null
           notifications: Json
           seen_by: string[]
           squad_id: string
@@ -160,6 +203,10 @@ export type Database = {
           event_name: string
           id?: string
           kicked_members?: string[]
+          location_lat?: number | null
+          location_lng?: number | null
+          location_name?: string | null
+          meeting_time?: string | null
           notifications?: Json
           seen_by?: string[]
           squad_id: string
@@ -175,6 +222,10 @@ export type Database = {
           event_name?: string
           id?: string
           kicked_members?: string[]
+          location_lat?: number | null
+          location_lng?: number | null
+          location_name?: string | null
+          meeting_time?: string | null
           notifications?: Json
           seen_by?: string[]
           squad_id?: string
