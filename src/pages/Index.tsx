@@ -12,6 +12,7 @@ import { MapScreen } from "@/squad/screens/MapScreen";
 import { ProfileScreen } from "@/squad/screens/ProfileScreen";
 import { BottomNav, Tab } from "@/squad/components/BottomNav";
 import { EventNotifications } from "@/squad/components/EventNotifications";
+import { LocationSharingProvider } from "@/squad/lib/LocationSharing";
 
 type WelcomeRoute = "welcome" | "create";
 
@@ -37,15 +38,17 @@ const Inner = () => {
   }
 
   return (
-    <div className="min-h-dvh max-w-md mx-auto bg-[#0D0D2B] text-white relative">
-      {tab === "home" && <HomeScreen />}
-      {tab === "expenses" && <ExpensesScreen />}
-      {tab === "late" && <LateScreen />}
-      {tab === "map" && <MapScreen />}
-      {tab === "profile" && <ProfileScreen />}
-      <BottomNav active={tab} onChange={setTab} />
-      <EventNotifications />
-    </div>
+    <LocationSharingProvider>
+      <div className="min-h-dvh max-w-md mx-auto bg-[#0D0D2B] text-white relative">
+        {tab === "home" && <HomeScreen />}
+        {tab === "expenses" && <ExpensesScreen />}
+        {tab === "late" && <LateScreen />}
+        {tab === "map" && <MapScreen />}
+        {tab === "profile" && <ProfileScreen />}
+        <BottomNav active={tab} onChange={setTab} />
+        <EventNotifications />
+      </div>
+    </LocationSharingProvider>
   );
 };
 
