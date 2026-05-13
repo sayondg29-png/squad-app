@@ -5,6 +5,7 @@ import { Avatar } from "../components/Avatar";
 import { Copy, LogOut, Loader2, X, Share2, Users } from "lucide-react";
 import { SquadDetailsScreen } from "./SquadDetailsScreen";
 import { toast } from "sonner";
+import { useLocationSharing } from "../lib/LocationSharing";
 
 type Activity = { id: string; type: "expense" | "late"; text: string; at: string };
 type Checkin = { user_id: string; status: string; minutes: number | null; updated_at: string };
@@ -26,6 +27,7 @@ function timeAgo(iso: string) {
 
 export function HomeScreen() {
   const { squad, members, user, profile, refreshProfile } = useApp();
+  const { isSharing, start: startLoc, stop: stopLoc } = useLocationSharing();
   const [acts, setActs] = useState<Activity[]>([]);
   const [copied, setCopied] = useState(false);
   const [checkins, setCheckins] = useState<Checkin[]>([]);
@@ -34,6 +36,23 @@ export function HomeScreen() {
   const [otwMin, setOtwMin] = useState("");
   const [lateMin, setLateMin] = useState("");
   const [showSquad, setShowSquad] = useState(false);
+  const [confirmStopShare, setConfirmStopShare] = useState(false);
+  const [activeEventId, setActiveEventId] = useState<string | null>(null);
+
+  // Find active event the current user is a member of (most recent)
+  useEffect(() => {
+    if (!squad || !user) { setActiveEventId(null); return; }
+    (async () => {
+      const { data } = await supabase
+        .from("meetings")
+        .select("id,event_members,status,created_at")
+        .eq("squad_id", squad.id)
+        .eq("status", "active")
+        .order("created_at", { ascending: false });
+      const ev = (data ?? []).find((m: any) => (m.event_members ?? []).includes(user.id));
+      setActiveEventId(ev?.id ?? null);
+    })();
+  }, [squad?.id, user?.id]);
 
   const inviteLink = squad ? `https://squad-app-blue.vercel.app/join/${squad.id}` : "";
 
@@ -71,6 +90,16 @@ export function HomeScreen() {
 
   const setStatus = async (status: string, minutes: number | null) => {
     if (!squad || !user) return;
+    // Trigger location sharing for OTW; stop for "here"
+    if (status === "otw") {
+      const ok = await startLoc(activeEventId);
+      if (!ok) return; // Don't change status if denied
+    } else if (status === "here") {
+      await stopLoc();
+    } else if (isSharing) {
+      // Other statuses: stop sharing too
+      await stopLoc();
+    }
     const { error } = await supabase.from("checkins").upsert({
       squad_id: squad.id, user_id: user.id, status, minutes, updated_at: new Date().toISOString(),
     }, { onConflict: "squad_id,user_id" });
@@ -115,6 +144,24 @@ export function HomeScreen() {
 
   return (
     <div className="px-5 pt-6 pb-28">
+      {/* Live sharing indicator + manual stop */}
+      {isSharing && (
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <button
+            onClick={() => setConfirmStopShare(true)}
+            className="px-3 py-1.5 rounded-full bg-[#E74C3C] text-white text-xs font-semibold tap-scale">
+            Stop Sharing Location
+          </button>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#0D0D2B] border border-[#00FF88]/40">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-[#00FF88] opacity-75 animate-ping"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#00FF88]"></span>
+            </span>
+            <span className="text-[11px] text-[#00FF88] font-semibold">Sharing Location</span>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
         <div className="text-4xl">{squad.emoji}</div>
         <div>
@@ -235,6 +282,21 @@ export function HomeScreen() {
                 className="flex-1 py-3 rounded-xl bg-[#E74C3C] text-white font-semibold tap-scale flex items-center justify-center gap-2 disabled:opacity-60">
                 {leaving && <Loader2 size={16} className="animate-spin" />} Leave Squad
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmStopShare && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center px-6" onClick={() => setConfirmStopShare(false)}>
+          <div onClick={e=>e.stopPropagation()} className="w-full max-w-sm bg-[#0D0D2B] border border-[#2a2a4a] rounded-2xl p-6">
+            <h2 className="text-lg font-bold text-white">Stop sharing?</h2>
+            <p className="text-[#888] text-sm mt-2">Are you sure you want to stop sharing your location?</p>
+            <div className="mt-5 flex gap-2">
+              <button onClick={() => setConfirmStopShare(false)}
+                className="flex-1 py-3 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white font-semibold tap-scale">Cancel</button>
+              <button onClick={async () => { await stopLoc(); setConfirmStopShare(false); }}
+                className="flex-1 py-3 rounded-xl bg-[#E74C3C] text-white font-semibold tap-scale">Stop Sharing</button>
             </div>
           </div>
         </div>
