@@ -532,6 +532,8 @@ function CreateMeeting({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   const { squad, user, members } = useApp();
   const [name, setName] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [time, setTime] = useState("");
+  const [locationName, setLocationName] = useState("");
   const [desc, setDesc] = useState("");
   const [selected, setSelected] = useState<string[]>(user ? [user.id] : []);
   const [busy, setBusy] = useState(false);
@@ -544,11 +546,32 @@ function CreateMeeting({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   const save = async () => {
     if (!name.trim() || !squad || !user) { toast.error("Event name required"); return; }
     setBusy(true);
+    let lat: number | null = null;
+    let lng: number | null = null;
+    if (locationName.trim()) {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationName.trim())}&format=json&limit=1`, {
+          headers: { "Accept": "application/json" },
+        });
+        const json = await res.json();
+        if (Array.isArray(json) && json[0]) {
+          lat = parseFloat(json[0].lat);
+          lng = parseFloat(json[0].lon);
+        } else {
+          toast.warning("Couldn't find that location — saved without coordinates");
+        }
+      } catch (err) {
+        toast.warning("Geocoding failed — saved without coordinates");
+      }
+    }
     const event_members = Array.from(new Set([...selected, user.id]));
     const { error } = await sb.from("meetings").insert({
       squad_id: squad.id, event_name: name.trim(), description: desc.trim() || null,
       date: date || null, created_by: user.id, status: "active",
       event_members,
+      meeting_time: time || null,
+      location_name: locationName.trim() || null,
+      location_lat: lat, location_lng: lng,
     });
     if (error) { toast.error(error.message); setBusy(false); return; }
     toast.success("Event created");
@@ -562,6 +585,17 @@ function CreateMeeting({ onClose, onSaved }: { onClose: () => void; onSaved: () 
           className="w-full px-4 py-3 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white placeholder:text-[#888]" />
         <input type="date" value={date} onChange={e => setDate(e.target.value)}
           className="w-full px-4 py-3 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white" />
+        <div>
+          <label className="text-xs text-[#888] uppercase tracking-wider">Meeting Time</label>
+          <input type="time" value={time} onChange={e => setTime(e.target.value)}
+            className="mt-1 w-full px-4 py-3 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white" />
+        </div>
+        <div>
+          <label className="text-xs text-[#888] uppercase tracking-wider">Meeting Location</label>
+          <input value={locationName} onChange={e => setLocationName(e.target.value)}
+            placeholder="Enter meeting place name (e.g. TSC CUET, Chittagong Railway Station)"
+            className="mt-1 w-full px-4 py-3 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white placeholder:text-[#888]" />
+        </div>
         <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Description (optional)" rows={2}
           className="w-full px-4 py-3 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white placeholder:text-[#888]" />
         <div>
