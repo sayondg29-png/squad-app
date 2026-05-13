@@ -132,9 +132,9 @@ export function MapScreen() {
     if (mapRef.current) return;
     const map = L.map("squad-map", { zoomControl: false, attributionControl: true })
       .setView([23.6850, 90.3563], 13);
-    L.tileLayer("https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png", {
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 20,
-      attribution: '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openstreetmap.org/">OpenStreetMap</a>',
+      attribution: '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openstreetmap.org/">© OpenStreetMap contributors</a>',
     }).addTo(map);
     L.control.zoom({ position: "bottomright" }).addTo(map);
     mapRef.current = map;
