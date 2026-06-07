@@ -630,6 +630,9 @@ function CreateMeeting({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [time, setTime] = useState("");
   const [locationName, setLocationName] = useState("");
+  const [locLat, setLocLat] = useState<number | null>(null);
+  const [locLng, setLocLng] = useState<number | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
   const [desc, setDesc] = useState("");
   const [selected, setSelected] = useState<string[]>(user ? [user.id] : []);
   const [busy, setBusy] = useState(false);
@@ -642,24 +645,8 @@ function CreateMeeting({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   const save = async () => {
     if (!name.trim() || !squad || !user) { toast.error("Event name required"); return; }
     setBusy(true);
-    let lat: number | null = null;
-    let lng: number | null = null;
-    if (locationName.trim()) {
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationName.trim())}&format=json&limit=1`, {
-          headers: { "Accept": "application/json" },
-        });
-        const json = await res.json();
-        if (Array.isArray(json) && json[0]) {
-          lat = parseFloat(json[0].lat);
-          lng = parseFloat(json[0].lon);
-        } else {
-          toast.warning("Couldn't find that location — saved without coordinates");
-        }
-      } catch (err) {
-        toast.warning("Geocoding failed — saved without coordinates");
-      }
-    }
+    const lat = locLat;
+    const lng = locLng;
     const event_members = Array.from(new Set([...selected, user.id]));
     const { error } = await sb.from("meetings").insert({
       squad_id: squad.id, event_name: name.trim(), description: desc.trim() || null,
@@ -688,9 +675,23 @@ function CreateMeeting({ onClose, onSaved }: { onClose: () => void; onSaved: () 
         </div>
         <div>
           <label className="text-xs text-[#888] uppercase tracking-wider">Meeting Location</label>
-          <input value={locationName} onChange={e => setLocationName(e.target.value)}
-            placeholder="Enter meeting place name (e.g. TSC CUET, Chittagong Railway Station)"
+          <input value={locationName} readOnly
+            placeholder="No location selected yet — tap the button to set on map"
             className="mt-1 w-full px-4 py-3 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white placeholder:text-[#888]" />
+          <button type="button" onClick={() => setShowPicker(true)}
+            className="mt-2 w-full text-white font-semibold tap-scale"
+            style={{ background: "#1A1AFF", borderRadius: 10, padding: "12px" }}>
+            📍 {locLat != null ? "Change Meeting Location" : "Set Meeting Location on Map"}
+          </button>
+          {locLat != null && locLng != null && (
+            <div className="mt-2">
+              <img
+                src={`https://staticmap.openstreetmap.de/staticmap.php?center=${locLat},${locLng}&zoom=15&size=400x120&markers=${locLat},${locLng},red`}
+                alt="Selected location"
+                className="w-full rounded-lg border border-[#2a2a4a]" />
+              <p className="text-xs text-[#888] mt-1 break-words">{locationName}</p>
+            </div>
+          )}
         </div>
         <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Description (optional)" rows={2}
           className="w-full px-4 py-3 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white placeholder:text-[#888]" />
@@ -715,6 +716,17 @@ function CreateMeeting({ onClose, onSaved }: { onClose: () => void; onSaved: () 
           {busy && <Loader2 size={18} className="animate-spin" />} Create Event
         </button>
       </div>
+      {showPicker && (
+        <LocationPickerModal
+          label={name || "Meeting"}
+          initial={locLat != null && locLng != null ? { lat: locLat, lng: locLng, name: locationName } : null}
+          onClose={() => setShowPicker(false)}
+          onConfirm={(lat, lng, n) => {
+            setLocLat(lat); setLocLng(lng); setLocationName(n);
+            setShowPicker(false);
+          }}
+        />
+      )}
     </Modal>
   );
 }
