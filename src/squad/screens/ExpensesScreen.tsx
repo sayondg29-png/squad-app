@@ -53,6 +53,96 @@ type Meeting = {
 
 const fmt = (n: number) => `BDT ${Number(n).toFixed(2)}`;
 
+const VOYAGER_TILES = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+const VOYAGER_ATTR = "&copy; OpenStreetMap contributors &copy; CARTO";
+
+function destDivIcon(label: string) {
+  const html = `
+    <style>@keyframes squadPulse{0%{transform:scale(1);opacity:.6}100%{transform:scale(1.6);opacity:0}}</style>
+    <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);">
+      <div style="position:relative;width:54px;height:54px;">
+        <div style="position:absolute;inset:0;border:2px solid #FF4444;border-radius:50%;animation:squadPulse 1.5s infinite;"></div>
+        <div style="position:absolute;inset:0;border:2px solid #FF4444;border-radius:50%;animation:squadPulse 1.5s infinite;animation-delay:.75s;"></div>
+        <div style="position:relative;width:54px;height:54px;border-radius:50%;background:#FF4444;display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 4px 12px rgba(0,0,0,.4);">📍</div>
+      </div>
+      <div style="background:#0D0D2B;color:#fff;border-radius:8px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;margin-top:4px;">${label}</div>
+    </div>`;
+  return L.divIcon({ html, className: "squad-dest-marker", iconSize: [0, 0] });
+}
+
+function LocationPickerModal({ initial, label, onClose, onConfirm }: {
+  initial?: { lat: number; lng: number; name: string } | null;
+  label: string;
+  onClose: () => void;
+  onConfirm: (lat: number, lng: number, name: string) => void;
+}) {
+  const mapElRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
+  const [picked, setPicked] = useState<{ lat: number; lng: number; name: string } | null>(initial ?? null);
+  const [loadingName, setLoadingName] = useState(false);
+
+  useEffect(() => {
+    if (!mapElRef.current || mapRef.current) return;
+    const center: [number, number] = initial ? [initial.lat, initial.lng] : [23.6850, 90.3563];
+    const map = L.map(mapElRef.current, { zoomControl: true, attributionControl: true }).setView(center, 13);
+    L.tileLayer(VOYAGER_TILES, { maxZoom: 20, subdomains: "abcd", attribution: VOYAGER_ATTR }).addTo(map);
+    if (initial) {
+      markerRef.current = L.marker([initial.lat, initial.lng], { icon: destDivIcon(label) }).addTo(map);
+    }
+    map.on("click", async (ev: L.LeafletMouseEvent) => {
+      const { lat, lng } = ev.latlng;
+      if (markerRef.current) map.removeLayer(markerRef.current);
+      markerRef.current = L.marker([lat, lng], { icon: destDivIcon(label) }).addTo(map);
+      setPicked({ lat, lng, name: "Fetching place…" });
+      setLoadingName(true);
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=en`);
+        const json = await res.json();
+        const name = json?.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        setPicked({ lat, lng, name });
+      } catch {
+        setPicked({ lat, lng, name: `${lat.toFixed(5)}, ${lng.toFixed(5)}` });
+      } finally {
+        setLoadingName(false);
+      }
+    });
+    mapRef.current = map;
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      markerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="fixed inset-0" style={{ zIndex: 9999 }}>
+      <div className="flex flex-col h-full w-full bg-[#0D0D2B]">
+        <div className="flex items-center justify-between px-4 py-3 bg-[#0D0D2B] border-b border-[#2a2a4a]">
+          <p className="text-white text-sm font-semibold">Tap anywhere on the map to set meeting spot</p>
+          <button onClick={onClose} className="text-white p-1 tap-scale"><X size={22} /></button>
+        </div>
+        <div className="relative flex-1">
+          <div ref={mapElRef} className="absolute inset-0" />
+        </div>
+        {picked && (
+          <div className="bg-white px-4 py-3 border-t border-gray-200">
+            <p className="text-gray-900 font-bold text-sm break-words">{loadingName ? "Fetching place…" : picked.name}</p>
+            <button
+              onClick={() => onConfirm(picked.lat, picked.lng, picked.name)}
+              disabled={loadingName}
+              className="mt-2 w-full py-3 rounded-xl bg-[#1A1AFF] text-white font-semibold tap-scale disabled:opacity-60">
+              Confirm This Location
+            </button>
+            <p className="text-center text-gray-500 text-xs mt-1">Tap anywhere else to change</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function getSplitMap(e: Expense, fallbackMembers: string[]): Record<string, number> {
   if (e.expense_type === "personal") return { [e.paid_by]: Number(e.amount) };
   const ids = e.split_with?.length ? e.split_with : fallbackMembers;
