@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useApp } from "../lib/AppContext";
 import { Plus, X, Loader2, Calendar as CalIcon, Crown, Pencil, Check, Archive, Users, UserMinus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar } from "../components/Avatar";
-import { useEffect as useEffectR, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
