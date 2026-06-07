@@ -19,7 +19,7 @@
 - Full privacy control — stop sharing anytime
 
 ### 💸 Expense Splitter
-- Add group expenses and split them fairly
+- Add group expenses and split them fairly...
 - See exactly who owes who and how much
 - Mark debts as settled with one tap
 - Running balance for every squad member
