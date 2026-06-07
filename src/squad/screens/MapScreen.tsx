@@ -132,9 +132,10 @@ export function MapScreen() {
     if (mapRef.current) return;
     const map = L.map("squad-map", { zoomControl: false, attributionControl: true })
       .setView([23.6850, 90.3563], 13);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
       maxZoom: 20,
-      attribution: '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openstreetmap.org/">© OpenStreetMap contributors</a>',
+      subdomains: "abcd",
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
     }).addTo(map);
     L.control.zoom({ position: "bottomright" }).addTo(map);
     mapRef.current = map;
@@ -176,10 +177,17 @@ export function MapScreen() {
       const stale = (Date.now() - new Date(loc.last_updated).getTime()) > 30_000;
       const opacity = stale ? 0.4 : 1;
       const subText = stale ? `Last seen ${fmtAgoMins(loc.last_updated)}` : "";
-
+      const colorKey = av.color.replace(/[^a-zA-Z0-9]/g, "");
+      const pulseAnim = !stale
+        ? `<style>@keyframes memberPulse_${colorKey}{0%,100%{box-shadow:0 0 0 2px ${av.color},0 2px 8px rgba(0,0,0,.5)}50%{box-shadow:0 0 0 6px ${av.color},0 2px 8px rgba(0,0,0,.5)}}</style>`
+        : "";
+      const ringStyle = !stale
+        ? `box-shadow:0 0 0 2px ${av.color},0 2px 8px rgba(0,0,0,.5);animation:memberPulse_${colorKey} 2s infinite ease-in-out;`
+        : `box-shadow:0 0 0 2px ${av.color},0 2px 8px rgba(0,0,0,.5);`;
       const html = `
+        ${pulseAnim}
         <div style="display:flex;flex-direction:column;align-items:center;opacity:${opacity};transform:translate(-50%,-100%);">
-          <div style="width:42px;height:42px;border-radius:50%;background:${av.color};display:flex;align-items:center;justify-content:center;font-size:22px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.5);">${av.emoji}</div>
+          <div style="width:46px;height:46px;border-radius:50%;background:${av.color};display:flex;align-items:center;justify-content:center;font-size:24px;border:3.5px solid #fff;${ringStyle}">${av.emoji}</div>
           <div style="margin-top:4px;padding:2px 8px;border-radius:8px;background:#0D0D2B;color:#fff;font-size:11px;font-weight:600;white-space:nowrap;border:1px solid #2a2a4a;">${member.name}</div>
           ${subText ? `<div style="margin-top:2px;padding:1px 6px;border-radius:6px;background:#0D0D2B;color:#888;font-size:9px;white-space:nowrap;">${subText}</div>` : ""}
         </div>`;
@@ -241,11 +249,23 @@ export function MapScreen() {
     if (activeEvent?.location_lat != null && activeEvent?.location_lng != null) {
       const pos: L.LatLngExpression = [activeEvent.location_lat, activeEvent.location_lng];
       const popup = `<b>${activeEvent.event_name}</b>${activeEvent.meeting_time ? `<br/>${activeEvent.meeting_time}` : ""}${activeEvent.location_name ? `<br/>${activeEvent.location_name}` : ""}`;
+      const destHtml = `
+        <style>@keyframes squadPulse{0%{transform:scale(1);opacity:.6}100%{transform:scale(1.6);opacity:0}}</style>
+        <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);">
+          <div style="position:relative;width:54px;height:54px;">
+            <div style="position:absolute;inset:0;border:2px solid #FF4444;border-radius:50%;animation:squadPulse 1.5s infinite;"></div>
+            <div style="position:absolute;inset:0;border:2px solid #FF4444;border-radius:50%;animation:squadPulse 1.5s infinite;animation-delay:.75s;"></div>
+            <div style="position:relative;width:54px;height:54px;border-radius:50%;background:#FF4444;display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 4px 12px rgba(0,0,0,.4);">📍</div>
+          </div>
+          <div style="background:#0D0D2B;color:#fff;border-radius:8px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;margin-top:4px;">${activeEvent.event_name}</div>
+        </div>`;
+      const destIcon = L.divIcon({ html: destHtml, className: "squad-dest-marker", iconSize: [0, 0] });
       if (destMarkerRef.current) {
         destMarkerRef.current.setLatLng(pos);
+        destMarkerRef.current.setIcon(destIcon);
         destMarkerRef.current.bindPopup(popup);
       } else {
-        const m = L.marker(pos).addTo(map).bindPopup(popup);
+        const m = L.marker(pos, { icon: destIcon }).addTo(map).bindPopup(popup);
         destMarkerRef.current = m;
       }
     } else if (destMarkerRef.current) {
@@ -301,7 +321,7 @@ export function MapScreen() {
 
       {/* Distance & ETA panel */}
       {activeEvent && (
-        <div className="bg-[#0D0D2B] border-t border-[#2a2a4a] px-3 py-3">
+        <div className="bg-white border-t border-gray-200 px-3 py-3">
           <div className="flex gap-2 overflow-x-auto no-scrollbar">
             {activeMemberIds.map(uid => {
               const m = members.find(x => x.id === uid);
@@ -319,22 +339,22 @@ export function MapScreen() {
                 etaLabel = `~${Math.max(1, Math.round(km / 0.083))} mins away`;
               }
               return (
-                <div key={uid} className="shrink-0 w-36 rounded-xl bg-[#1E1E3F] border border-[#2a2a4a] p-2.5">
+                <div key={uid} className="shrink-0 w-36 rounded-xl bg-white border border-gray-200 p-2.5">
                   <div className="flex items-center gap-2">
                     <div className="rounded-full flex items-center justify-center shrink-0"
                       style={{ width: 32, height: 32, background: av.color, fontSize: 18 }}>{av.emoji}</div>
-                    <p className="text-white text-xs font-semibold truncate">{m.name}</p>
+                    <p className="text-gray-900 text-xs font-semibold truncate">{m.name}</p>
                   </div>
                   {meta && (
                     <p className="mt-1 text-[10px] font-semibold" style={{ color: meta.color }}>{meta.label}</p>
                   )}
                   {loc && !stale ? (
                     <>
-                      {distLabel && <p className="text-[11px] text-[#00E5FF] mt-0.5">{distLabel}</p>}
-                      {etaLabel && <p className="text-[10px] text-[#888]">{etaLabel}</p>}
+                      {distLabel && <p className="text-[11px] text-blue-600 mt-0.5">{distLabel}</p>}
+                      {etaLabel && <p className="text-[10px] text-gray-500">{etaLabel}</p>}
                     </>
                   ) : (
-                    <p className="text-[10px] text-[#888] mt-0.5">Offline</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Offline</p>
                   )}
                 </div>
               );

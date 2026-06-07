@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useApp } from "../lib/AppContext";
 import { Plus, X, Loader2, Calendar as CalIcon, Crown, Pencil, Check, Archive, Users, UserMinus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar } from "../components/Avatar";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
 const sb = supabase as any;
 
@@ -43,9 +45,103 @@ type Meeting = {
   notifications: NotificationEntry[];
   seen_by: string[];
   summaries_seen: string[];
+  meeting_time?: string | null;
+  location_name?: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
 };
 
 const fmt = (n: number) => `BDT ${Number(n).toFixed(2)}`;
+
+const VOYAGER_TILES = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+const VOYAGER_ATTR = "&copy; OpenStreetMap contributors &copy; CARTO";
+
+function destDivIcon(label: string) {
+  const html = `
+    <style>@keyframes squadPulse{0%{transform:scale(1);opacity:.6}100%{transform:scale(1.6);opacity:0}}</style>
+    <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);">
+      <div style="position:relative;width:54px;height:54px;">
+        <div style="position:absolute;inset:0;border:2px solid #FF4444;border-radius:50%;animation:squadPulse 1.5s infinite;"></div>
+        <div style="position:absolute;inset:0;border:2px solid #FF4444;border-radius:50%;animation:squadPulse 1.5s infinite;animation-delay:.75s;"></div>
+        <div style="position:relative;width:54px;height:54px;border-radius:50%;background:#FF4444;display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 4px 12px rgba(0,0,0,.4);">📍</div>
+      </div>
+      <div style="background:#0D0D2B;color:#fff;border-radius:8px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;margin-top:4px;">${label}</div>
+    </div>`;
+  return L.divIcon({ html, className: "squad-dest-marker", iconSize: [0, 0] });
+}
+
+function LocationPickerModal({ initial, label, onClose, onConfirm }: {
+  initial?: { lat: number; lng: number; name: string } | null;
+  label: string;
+  onClose: () => void;
+  onConfirm: (lat: number, lng: number, name: string) => void;
+}) {
+  const mapElRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
+  const [picked, setPicked] = useState<{ lat: number; lng: number; name: string } | null>(initial ?? null);
+  const [loadingName, setLoadingName] = useState(false);
+
+  useEffect(() => {
+    if (!mapElRef.current || mapRef.current) return;
+    const center: [number, number] = initial ? [initial.lat, initial.lng] : [23.6850, 90.3563];
+    const map = L.map(mapElRef.current, { zoomControl: true, attributionControl: true }).setView(center, 13);
+    L.tileLayer(VOYAGER_TILES, { maxZoom: 20, subdomains: "abcd", attribution: VOYAGER_ATTR }).addTo(map);
+    if (initial) {
+      markerRef.current = L.marker([initial.lat, initial.lng], { icon: destDivIcon(label) }).addTo(map);
+    }
+    map.on("click", async (ev: L.LeafletMouseEvent) => {
+      const { lat, lng } = ev.latlng;
+      if (markerRef.current) map.removeLayer(markerRef.current);
+      markerRef.current = L.marker([lat, lng], { icon: destDivIcon(label) }).addTo(map);
+      setPicked({ lat, lng, name: "Fetching place…" });
+      setLoadingName(true);
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=en`);
+        const json = await res.json();
+        const name = json?.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        setPicked({ lat, lng, name });
+      } catch {
+        setPicked({ lat, lng, name: `${lat.toFixed(5)}, ${lng.toFixed(5)}` });
+      } finally {
+        setLoadingName(false);
+      }
+    });
+    mapRef.current = map;
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      markerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="fixed inset-0" style={{ zIndex: 9999 }}>
+      <div className="flex flex-col h-full w-full bg-[#0D0D2B]">
+        <div className="flex items-center justify-between px-4 py-3 bg-[#0D0D2B] border-b border-[#2a2a4a]">
+          <p className="text-white text-sm font-semibold">Tap anywhere on the map to set meeting spot</p>
+          <button onClick={onClose} className="text-white p-1 tap-scale"><X size={22} /></button>
+        </div>
+        <div className="relative flex-1">
+          <div ref={mapElRef} className="absolute inset-0" />
+        </div>
+        {picked && (
+          <div className="bg-white px-4 py-3 border-t border-gray-200">
+            <p className="text-gray-900 font-bold text-sm break-words">{loadingName ? "Fetching place…" : picked.name}</p>
+            <button
+              onClick={() => onConfirm(picked.lat, picked.lng, picked.name)}
+              disabled={loadingName}
+              className="mt-2 w-full py-3 rounded-xl bg-[#1A1AFF] text-white font-semibold tap-scale disabled:opacity-60">
+              Confirm This Location
+            </button>
+            <p className="text-center text-gray-500 text-xs mt-1">Tap anywhere else to change</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function getSplitMap(e: Expense, fallbackMembers: string[]): Record<string, number> {
   if (e.expense_type === "personal") return { [e.paid_by]: Number(e.amount) };
@@ -75,6 +171,7 @@ export function ExpensesScreen() {
   const [summaryMeetingId, setSummaryMeetingId] = useState<string | null>(null);
   const [manageMeetingId, setManageMeetingId] = useState<string | null>(null);
   const [forcedSummaryId, setForcedSummaryId] = useState<string | null>(null);
+  const [locationMeetingId, setLocationMeetingId] = useState<string | null>(null);
 
   const memberIds = useMemo(() => members.map(m => m.id), [members]);
 
@@ -188,6 +285,12 @@ export function ExpensesScreen() {
                       <Users size={14} /> Manage Members ({memberCount})
                     </button>
                   )}
+                  {(m.event_members ?? []).includes(user?.id ?? "") && (
+                    <button onClick={() => setLocationMeetingId(m.id)}
+                      className="mt-2 w-full py-2 rounded-lg bg-[#1A1AFF] text-white text-xs font-semibold tap-scale flex items-center justify-center gap-1.5">
+                      📍 {m.location_name ? `${m.location_name.length > 30 ? m.location_name.slice(0, 30) + "…" : m.location_name} · Change` : "Set Meeting Location"}
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -264,6 +367,29 @@ export function ExpensesScreen() {
       {manageMeetingId && (
         <ManageMembers meeting={meetings.find(m => m.id === manageMeetingId)!} onClose={() => setManageMeetingId(null)} onChanged={load} />
       )}
+      {locationMeetingId && (() => {
+        const mt = meetings.find(m => m.id === locationMeetingId);
+        if (!mt) return null;
+        const init = mt.location_lat != null && mt.location_lng != null
+          ? { lat: mt.location_lat, lng: mt.location_lng, name: mt.location_name ?? "" }
+          : null;
+        return (
+          <LocationPickerModal
+            label={mt.event_name}
+            initial={init}
+            onClose={() => setLocationMeetingId(null)}
+            onConfirm={async (lat, lng, n) => {
+              const { error } = await sb.from("meetings")
+                .update({ location_lat: lat, location_lng: lng, location_name: n })
+                .eq("id", mt.id);
+              if (error) { toast.error(error.message); return; }
+              toast.success("Location updated for all members");
+              setLocationMeetingId(null);
+              load();
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }
@@ -534,6 +660,9 @@ function CreateMeeting({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [time, setTime] = useState("");
   const [locationName, setLocationName] = useState("");
+  const [locLat, setLocLat] = useState<number | null>(null);
+  const [locLng, setLocLng] = useState<number | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
   const [desc, setDesc] = useState("");
   const [selected, setSelected] = useState<string[]>(user ? [user.id] : []);
   const [busy, setBusy] = useState(false);
@@ -546,24 +675,8 @@ function CreateMeeting({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   const save = async () => {
     if (!name.trim() || !squad || !user) { toast.error("Event name required"); return; }
     setBusy(true);
-    let lat: number | null = null;
-    let lng: number | null = null;
-    if (locationName.trim()) {
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationName.trim())}&format=json&limit=1`, {
-          headers: { "Accept": "application/json" },
-        });
-        const json = await res.json();
-        if (Array.isArray(json) && json[0]) {
-          lat = parseFloat(json[0].lat);
-          lng = parseFloat(json[0].lon);
-        } else {
-          toast.warning("Couldn't find that location — saved without coordinates");
-        }
-      } catch (err) {
-        toast.warning("Geocoding failed — saved without coordinates");
-      }
-    }
+    const lat = locLat;
+    const lng = locLng;
     const event_members = Array.from(new Set([...selected, user.id]));
     const { error } = await sb.from("meetings").insert({
       squad_id: squad.id, event_name: name.trim(), description: desc.trim() || null,
@@ -592,9 +705,23 @@ function CreateMeeting({ onClose, onSaved }: { onClose: () => void; onSaved: () 
         </div>
         <div>
           <label className="text-xs text-[#888] uppercase tracking-wider">Meeting Location</label>
-          <input value={locationName} onChange={e => setLocationName(e.target.value)}
-            placeholder="Enter meeting place name (e.g. TSC CUET, Chittagong Railway Station)"
+          <input value={locationName} readOnly
+            placeholder="No location selected yet — tap the button to set on map"
             className="mt-1 w-full px-4 py-3 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white placeholder:text-[#888]" />
+          <button type="button" onClick={() => setShowPicker(true)}
+            className="mt-2 w-full text-white font-semibold tap-scale"
+            style={{ background: "#1A1AFF", borderRadius: 10, padding: "12px" }}>
+            📍 {locLat != null ? "Change Meeting Location" : "Set Meeting Location on Map"}
+          </button>
+          {locLat != null && locLng != null && (
+            <div className="mt-2">
+              <img
+                src={`https://staticmap.openstreetmap.de/staticmap.php?center=${locLat},${locLng}&zoom=15&size=400x120&markers=${locLat},${locLng},red`}
+                alt="Selected location"
+                className="w-full rounded-lg border border-[#2a2a4a]" />
+              <p className="text-xs text-[#888] mt-1 break-words">{locationName}</p>
+            </div>
+          )}
         </div>
         <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Description (optional)" rows={2}
           className="w-full px-4 py-3 rounded-xl bg-[#1a1a3a] border border-[#2a2a4a] text-white placeholder:text-[#888]" />
@@ -619,6 +746,17 @@ function CreateMeeting({ onClose, onSaved }: { onClose: () => void; onSaved: () 
           {busy && <Loader2 size={18} className="animate-spin" />} Create Event
         </button>
       </div>
+      {showPicker && (
+        <LocationPickerModal
+          label={name || "Meeting"}
+          initial={locLat != null && locLng != null ? { lat: locLat, lng: locLng, name: locationName } : null}
+          onClose={() => setShowPicker(false)}
+          onConfirm={(lat, lng, n) => {
+            setLocLat(lat); setLocLng(lng); setLocationName(n);
+            setShowPicker(false);
+          }}
+        />
+      )}
     </Modal>
   );
 }
