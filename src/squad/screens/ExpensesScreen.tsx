@@ -171,6 +171,7 @@ export function ExpensesScreen() {
   const [summaryMeetingId, setSummaryMeetingId] = useState<string | null>(null);
   const [manageMeetingId, setManageMeetingId] = useState<string | null>(null);
   const [forcedSummaryId, setForcedSummaryId] = useState<string | null>(null);
+  const [locationMeetingId, setLocationMeetingId] = useState<string | null>(null);
 
   const memberIds = useMemo(() => members.map(m => m.id), [members]);
 
@@ -284,6 +285,12 @@ export function ExpensesScreen() {
                       <Users size={14} /> Manage Members ({memberCount})
                     </button>
                   )}
+                  {(m.event_members ?? []).includes(user?.id ?? "") && (
+                    <button onClick={() => setLocationMeetingId(m.id)}
+                      className="mt-2 w-full py-2 rounded-lg bg-[#1A1AFF] text-white text-xs font-semibold tap-scale flex items-center justify-center gap-1.5">
+                      📍 {m.location_name ? `${m.location_name.length > 30 ? m.location_name.slice(0, 30) + "…" : m.location_name} · Change` : "Set Meeting Location"}
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -360,6 +367,29 @@ export function ExpensesScreen() {
       {manageMeetingId && (
         <ManageMembers meeting={meetings.find(m => m.id === manageMeetingId)!} onClose={() => setManageMeetingId(null)} onChanged={load} />
       )}
+      {locationMeetingId && (() => {
+        const mt = meetings.find(m => m.id === locationMeetingId);
+        if (!mt) return null;
+        const init = mt.location_lat != null && mt.location_lng != null
+          ? { lat: mt.location_lat, lng: mt.location_lng, name: mt.location_name ?? "" }
+          : null;
+        return (
+          <LocationPickerModal
+            label={mt.event_name}
+            initial={init}
+            onClose={() => setLocationMeetingId(null)}
+            onConfirm={async (lat, lng, n) => {
+              const { error } = await sb.from("meetings")
+                .update({ location_lat: lat, location_lng: lng, location_name: n })
+                .eq("id", mt.id);
+              if (error) { toast.error(error.message); return; }
+              toast.success("Location updated for all members");
+              setLocationMeetingId(null);
+              load();
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }
