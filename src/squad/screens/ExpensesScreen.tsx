@@ -4,6 +4,9 @@ import { useApp } from "../lib/AppContext";
 import { Plus, X, Loader2, Calendar as CalIcon, Crown, Pencil, Check, Archive, Users, UserMinus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar } from "../components/Avatar";
+import { useEffect as useEffectR, useRef } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
 const sb = supabase as any;
 
@@ -43,6 +46,10 @@ type Meeting = {
   notifications: NotificationEntry[];
   seen_by: string[];
   summaries_seen: string[];
+  meeting_time?: string | null;
+  location_name?: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
 };
 
 const fmt = (n: number) => `BDT ${Number(n).toFixed(2)}`;
