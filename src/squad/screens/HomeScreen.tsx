@@ -162,11 +162,42 @@ export function HomeScreen() {
         </div>
       )}
 
-      <div className="flex items-center gap-3">
-        <div className="text-4xl">{squad.emoji}</div>
-        <div>
-          <p className="text-xs text-[#888] uppercase tracking-widest">Squad</p>
-          <h1 className="text-2xl font-bold text-white">{squad.name}</h1>
+      {/* Premium Squad Banner */}
+      <div
+        className="relative w-full overflow-hidden mb-5"
+        style={{
+          borderRadius: 16,
+          padding: "20px 24px",
+          background: "linear-gradient(135deg, #1A1AFF 0%, #7B2FFF 50%, #FF6B6B 100%)",
+          boxShadow: "0 8px 32px rgba(26, 26, 255, 0.3)",
+        }}
+      >
+        {/* Shine overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            borderRadius: 16,
+            background: "linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 50%)",
+          }}
+        />
+        <div className="relative flex items-center gap-4 z-10">
+          <div style={{ fontSize: 52, lineHeight: 1 }}>{squad.emoji}</div>
+          <div className="flex flex-col">
+            <h1
+              className="text-white"
+              style={{
+                fontSize: 24,
+                fontWeight: 800,
+                textShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                lineHeight: 1.2,
+              }}
+            >
+              {squad.name}
+            </h1>
+            <p className="text-white mt-1" style={{ fontSize: 13, opacity: 0.85 }}>
+              {members.length} member{members.length !== 1 ? "s" : ""}
+            </p>
+          </div>
         </div>
       </div>
 
